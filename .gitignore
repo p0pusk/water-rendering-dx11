@@ -1,2 +1,4 @@
 build/
+.cache/
 neovim.json
+compile_commands.json

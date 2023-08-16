@@ -58,6 +58,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 
   case WM_KEYUP:
     PressedKeys[wparam] = false;
+    if (pRenderer != nullptr) {
+      pRenderer->KeyReleased((int)wparam);
+    }
     break;
   case WM_DESTROY: {
     PostQuitMessage(0);
