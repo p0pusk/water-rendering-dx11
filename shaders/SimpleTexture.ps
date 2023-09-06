@@ -1,15 +1,42 @@
-Texture2D colorTexture : register(t0);
+#include "../shaders/Light.h"
+
+cbuffer GeomBuffer : register (b1)
+{
+    float4x4 model;
+    float4x4 norm;
+    float4 shine; // x - shininess
+};
+
+Texture2D colorTexture : register (t0);
+Texture2D normalMapTexture : register (t1);
 
 SamplerState colorSampler : register(s0);
 
 struct VSOutput
 {
     float4 pos : SV_Position;
+    float4 worldPos : POSITION;
+    float3 tang : TANGENT;
+    float3 norm : NORMAL;
     float2 uv : TEXCOORD;
 };
 
-
 float4 ps(VSOutput pixel) : SV_Target0
 {
-    return float4(colorTexture.Sample(colorSampler, pixel.uv).xyz, 1.0);
+    float3 color = colorTexture.Sample(colorSampler, pixel.uv).xyz;
+    float3 finalColor = ambientColor * color;
+
+    float3 normal = float3(0,0,0);
+    if (lightCount.y > 0)
+    {
+        float3 binorm = normalize(cross(pixel.norm, pixel.tang));
+        float3 localNorm = normalMapTexture.Sample(colorSampler, pixel.uv).xyz * 2.0 - float3(1.0, 1.0, 1.0);
+        normal = localNorm.x * normalize(pixel.tang) + localNorm.y * binorm + localNorm.z * normalize(pixel.norm);
+    }
+    else
+    {
+        normal = pixel.norm;
+    }
+
+    return float4(CalculateColor(color, normal, pixel.worldPos.xyz, shine.x, false), 1.0);
 }

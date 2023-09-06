@@ -22,18 +22,23 @@
 #include <winnt.h>
 #include <winuser.h>
 
+
+struct TextureTangentVertex {
+  Point3f pos;
+  Point3f tangent;
+  Point3f norm;
+  Point2f uv;
+};
+
 struct ColorVertex {
   float x, y, z;
   COLORREF color;
 };
 
-struct TextureVertex {
-  float x, y, z;
-  float u, v;
-};
-
 struct GeomBuffer {
   DirectX::XMMATRIX m;
+  DirectX::XMMATRIX normalM;
+  Point4f shine; // x - shininess
 };
 
 struct SphereGeomBuffer {
@@ -44,11 +49,6 @@ struct SphereGeomBuffer {
 struct RectGeomBuffer {
   DirectX::XMMATRIX m;
   Point4f color;
-};
-
-struct SceneBuffer {
-  DirectX::XMMATRIX vp;
-  Point4f cameraPos;
 };
 
 static const float CameraRotationSpeed = (float)M_PI * 2.0f;
@@ -152,11 +152,10 @@ bool Renderer::Init(HWND hWnd) {
     UINT flags = 0;
 #ifdef _DEBUG
     flags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-    result =
-        D3D11CreateDevice(pSelectedAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL,
-                          flags, levels, ARRAYSIZE(levels), D3D11_SDK_VERSION,
-                          &m_pDevice, &level, &m_pDeviceContext);
+#endif // _DEBUG
+    result = D3D11CreateDevice(pSelectedAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL,
+                               flags, levels, 1, D3D11_SDK_VERSION, &m_pDevice,
+                               &level, &m_pDeviceContext);
     assert(level == D3D_FEATURE_LEVEL_11_0);
     assert(SUCCEEDED(result));
   }
@@ -209,6 +208,15 @@ bool Renderer::Init(HWND hWnd) {
 
   SAFE_RELEASE(pSelectedAdapter);
   SAFE_RELEASE(pFactory);
+
+  if (SUCCEEDED(result)) {
+    m_sceneBuffer.lightCount.x = 2;
+    m_sceneBuffer.lights[0].pos = Point4f{0, 1.05f, 0, 1};
+    m_sceneBuffer.lights[0].color = Point4f{1, 1, 0};
+    m_sceneBuffer.lights[1].pos = Point4f{2, 1.05f, 0, 1};
+    m_sceneBuffer.lights[1].color = Point4f{0.75f, 0.75f, 1};
+    m_sceneBuffer.ambientColor = Point4f(0, 0, 0.2f, 0);
+  }
 
   if (FAILED(result)) {
     Term();
@@ -277,6 +285,10 @@ bool Renderer::Update() {
         DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), -(float)m_angle);
 
     geomBuffer.m = m;
+    m = DirectX::XMMatrixInverse(nullptr, m);
+    m = DirectX::XMMatrixTranspose(m);
+    geomBuffer.normalM = m;
+    geomBuffer.shine.x = 0.0f;
 
     m_pDeviceContext->UpdateSubresource(m_pGeomBuffer, 0, nullptr, &geomBuffer,
                                         0, 0);
@@ -284,8 +296,24 @@ bool Renderer::Update() {
     // Model matrix for second cube
     m = DirectX::XMMatrixTranslation(2.0f, 0.0f, 0.0f);
     geomBuffer.m = m;
+    geomBuffer.normalM = DirectX::XMMatrixIdentity();
+    geomBuffer.shine.x = 64.0f;
     m_pDeviceContext->UpdateSubresource(m_pGeomBuffer2, 0, nullptr, &geomBuffer,
                                         0, 0);
+  }
+
+  // Move light bulb spheres
+  {
+    for (int i = 0; i < m_sceneBuffer.lightCount.x; i++) {
+      RectGeomBuffer geomBuffer;
+      geomBuffer.m = DirectX::XMMatrixTranslation(
+          m_sceneBuffer.lights[i].pos.x, m_sceneBuffer.lights[i].pos.y,
+          m_sceneBuffer.lights[i].pos.z);
+      geomBuffer.color = m_sceneBuffer.lights[i].color;
+
+      m_pDeviceContext->UpdateSubresource(m_pSmallSphereGeomBuffers[i], 0,
+                                          nullptr, &geomBuffer, 0, 0);
+    }
   }
 
   m_prevUSec = usec;
@@ -310,7 +338,6 @@ bool Renderer::Update() {
         DirectX::XMVectorSet(up.x, up.y, up.z, 0.0f));
 
     cameraPos = pos;
-    cameraPos.w = 1;
   }
 
   float f = 100.0f;
@@ -326,11 +353,10 @@ bool Renderer::Update() {
       m_pSceneBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subresource);
   assert(SUCCEEDED(result));
   if (SUCCEEDED(result)) {
-    SceneBuffer &sceneBuffer =
-        *reinterpret_cast<SceneBuffer *>(subresource.pData);
+    m_sceneBuffer.vp = DirectX::XMMatrixMultiply(v, p);
+    m_sceneBuffer.cameraPos = cameraPos;
 
-    sceneBuffer.vp = DirectX::XMMatrixMultiply(v, p);
-    sceneBuffer.cameraPos = cameraPos;
+    memcpy(subresource.pData, &m_sceneBuffer, sizeof(SceneBuffer));
 
     m_pDeviceContext->Unmap(m_pSceneBuffer, 0);
   }
@@ -374,31 +400,38 @@ bool Renderer::Render() {
   ID3D11SamplerState *samplers[] = {m_pSampler};
   m_pDeviceContext->PSSetSamplers(0, 1, samplers);
 
-  ID3D11ShaderResourceView *resources[] = {m_pTextureView};
-  m_pDeviceContext->PSSetShaderResources(0, 1, resources);
+  ID3D11ShaderResourceView *resources[] = {m_pTextureView, m_pTextureViewNM};
+  m_pDeviceContext->PSSetShaderResources(0, 2, resources);
 
   m_pDeviceContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
   ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};
-  UINT strides[] = {20};
+  UINT strides[] = {44};
   UINT offsets[] = {0};
-  ID3D11Buffer *cbuffers[] = {m_pGeomBuffer, m_pSceneBuffer};
+  ID3D11Buffer *cbuffers[] = {m_pSceneBuffer, m_pGeomBuffer};
   m_pDeviceContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
   m_pDeviceContext->IASetInputLayout(m_pInputLayout);
   m_pDeviceContext->IASetPrimitiveTopology(
       D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   m_pDeviceContext->VSSetShader(m_pVertexShader, nullptr, 0);
   m_pDeviceContext->VSSetConstantBuffers(0, 2, cbuffers);
+  m_pDeviceContext->PSSetConstantBuffers(0, 2, cbuffers);
   m_pDeviceContext->PSSetShader(m_pPixelShader, nullptr, 0);
   m_pDeviceContext->DrawIndexed(36, 0, 0);
 
   ID3D11Buffer *cbuffers2[] = {m_pGeomBuffer2};
   m_pDeviceContext->VSSetConstantBuffers(1, 1, cbuffers2);
+  m_pDeviceContext->PSSetConstantBuffers(1, 1, cbuffers2);
   m_pDeviceContext->DrawIndexed(36, 0, 0);
+
+  if (m_showLightBulbs) {
+    RenderSmallSpheres();
+  }
 
   RenderSphere();
 
   RenderRects();
 
+  // Rendering
   HRESULT result = m_pSwapChain->Present(0, 0);
   assert(SUCCEEDED(result));
 
@@ -567,58 +600,72 @@ HRESULT Renderer::SetupBackBuffer() {
 
 HRESULT Renderer::InitScene() {
   // Textured cube
-  static const TextureVertex Vertices[24] = {
-
+  static const TextureTangentVertex Vertices[24] = {
       // Bottom face
-      {-0.5, -0.5, 0.5, 0, 1},
-      {0.5, -0.5, 0.5, 1, 1},
-      {0.5, -0.5, -0.5, 1, 0},
-      {-0.5, -0.5, -0.5, 0, 0},
+      {Point3f{-0.5, -0.5, 0.5}, Point3f{1, 0, 0}, Point3f{0, -1, 0},
+       Point2f{0, 1}},
+      {Point3f{0.5, -0.5, 0.5}, Point3f{1, 0, 0}, Point3f{0, -1, 0},
+       Point2f{1, 1}},
+      {Point3f{0.5, -0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, -1, 0},
+       Point2f{1, 0}},
+      {Point3f{-0.5, -0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, -1, 0},
+       Point2f{0, 0}},
       // Top face
-      {-0.5, 0.5, -0.5, 0, 1},
-      {0.5, 0.5, -0.5, 1, 1},
-      {0.5, 0.5, 0.5, 1, 0},
-      {-0.5, 0.5, 0.5, 0, 0},
+      {Point3f{-0.5, 0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, 1, 0},
+       Point2f{0, 1}},
+      {Point3f{0.5, 0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, 1, 0},
+       Point2f{1, 1}},
+      {Point3f{0.5, 0.5, 0.5}, Point3f{1, 0, 0}, Point3f{0, 1, 0},
+       Point2f{1, 0}},
+      {Point3f{-0.5, 0.5, 0.5}, Point3f{1, 0, 0}, Point3f{0, 1, 0},
+       Point2f{0, 0}},
       // Front face
-      {0.5, -0.5, -0.5, 0, 1},
-      {0.5, -0.5, 0.5, 1, 1},
-      {0.5, 0.5, 0.5, 1, 0},
-      {0.5, 0.5, -0.5, 0, 0},
+      {Point3f{0.5, -0.5, -0.5}, Point3f{0, 0, 1}, Point3f{1, 0, 0},
+       Point2f{0, 1}},
+      {Point3f{0.5, -0.5, 0.5}, Point3f{0, 0, 1}, Point3f{1, 0, 0},
+       Point2f{1, 1}},
+      {Point3f{0.5, 0.5, 0.5}, Point3f{0, 0, 1}, Point3f{1, 0, 0},
+       Point2f{1, 0}},
+      {Point3f{0.5, 0.5, -0.5}, Point3f{0, 0, 1}, Point3f{1, 0, 0},
+       Point2f{0, 0}},
       // Back face
-      {-0.5, -0.5, 0.5, 0, 1},
-      {-0.5, -0.5, -0.5, 1, 1},
-      {-0.5, 0.5, -0.5, 1, 0},
-      {-0.5, 0.5, 0.5, 0, 0},
+      {Point3f{-0.5, -0.5, 0.5}, Point3f{0, 0, -1}, Point3f{-1, 0, 0},
+       Point2f{0, 1}},
+      {Point3f{-0.5, -0.5, -0.5}, Point3f{0, 0, -1}, Point3f{-1, 0, 0},
+       Point2f{1, 1}},
+      {Point3f{-0.5, 0.5, -0.5}, Point3f{0, 0, -1}, Point3f{-1, 0, 0},
+       Point2f{1, 0}},
+      {Point3f{-0.5, 0.5, 0.5}, Point3f{0, 0, -1}, Point3f{-1, 0, 0},
+       Point2f{0, 0}},
       // Left face
-      {0.5, -0.5, 0.5, 0, 1},
-      {-0.5, -0.5, 0.5, 1, 1},
-      {-0.5, 0.5, 0.5, 1, 0},
-      {0.5, 0.5, 0.5, 0, 0},
+      {Point3f{0.5, -0.5, 0.5}, Point3f{-1, 0, 0}, Point3f{0, 0, 1},
+       Point2f{0, 1}},
+      {Point3f{-0.5, -0.5, 0.5}, Point3f{-1, 0, 0}, Point3f{0, 0, 1},
+       Point2f{1, 1}},
+      {Point3f{-0.5, 0.5, 0.5}, Point3f{-1, 0, 0}, Point3f{0, 0, 1},
+       Point2f{1, 0}},
+      {Point3f{0.5, 0.5, 0.5}, Point3f{-1, 0, 0}, Point3f{0, 0, 1},
+       Point2f{0, 0}},
       // Right face
-      {-0.5, -0.5, -0.5, 0, 1},
-      {0.5, -0.5, -0.5, 1, 1},
-      {0.5, 0.5, -0.5, 1, 0},
-      {-0.5, 0.5, -0.5, 0, 0}};
-
+      {Point3f{-0.5, -0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, 0, -1},
+       Point2f{0, 1}},
+      {Point3f{0.5, -0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, 0, -1},
+       Point2f{1, 1}},
+      {Point3f{0.5, 0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, 0, -1},
+       Point2f{1, 0}},
+      {Point3f{-0.5, 0.5, -0.5}, Point3f{1, 0, 0}, Point3f{0, 0, -1},
+       Point2f{0, 0}}};
   static const UINT16 Indices[36] = {
-
-      // bottom
-      0, 2, 1, 0, 3, 2,
-      // top
-      4, 6, 5, 4, 7, 6,
-      // front
-      8, 10, 9, 8, 11, 10,
-      // back
-      12, 14, 13, 12, 15, 14,
-      // left
-      16, 18, 17, 16, 19, 18,
-      // right
-      20, 22, 21, 20, 23, 22};
-
+      0,  2,  1,  0,  3,  2,  4,  6,  5,  4,  7,  6,  8,  10, 9,  8,  11, 10,
+      12, 14, 13, 12, 15, 14, 16, 18, 17, 16, 19, 18, 20, 22, 21, 20, 23, 22};
   static const D3D11_INPUT_ELEMENT_DESC InputDesc[] = {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
        D3D11_INPUT_PER_VERTEX_DATA, 0},
-      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12,
+      {"TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12,
+       D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 24,
+       D3D11_INPUT_PER_VERTEX_DATA, 0},
+      {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 36,
        D3D11_INPUT_PER_VERTEX_DATA, 0}};
 
   HRESULT result = S_OK;
@@ -670,7 +717,7 @@ HRESULT Renderer::InitScene() {
   ID3DBlob *pVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
     result = CompileAndCreateShader(L"../shaders/SimpleTexture.vs",
-                                    (ID3D11DeviceChild **)&m_pVertexShader,
+                                    (ID3D11DeviceChild **)&m_pVertexShader, {},
                                     &pVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
@@ -680,7 +727,7 @@ HRESULT Renderer::InitScene() {
 
   if (SUCCEEDED(result)) {
     result = m_pDevice->CreateInputLayout(
-        InputDesc, 2, pVertexShaderCode->GetBufferPointer(),
+        InputDesc, 4, pVertexShaderCode->GetBufferPointer(),
         pVertexShaderCode->GetBufferSize(), &m_pInputLayout);
     if (SUCCEEDED(result)) {
       result = SetResourceName(m_pInputLayout, "InputLayout");
@@ -873,6 +920,63 @@ HRESULT Renderer::InitScene() {
         m_pDevice->CreateShaderResourceView(m_pTexture, &desc, &m_pTextureView);
   }
   if (SUCCEEDED(result)) {
+    const std::wstring TextureName = L"../Common/BrickNM.dds";
+
+    TextureDesc textureDesc;
+    bool ddsRes = LoadDDS(TextureName.c_str(), textureDesc);
+
+    textureFmt = textureDesc.fmt;
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Format = textureDesc.fmt;
+    desc.ArraySize = 1;
+    desc.MipLevels = textureDesc.mipmapsCount;
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Height = textureDesc.height;
+    desc.Width = textureDesc.width;
+
+    UINT32 blockWidth = DivUp(desc.Width, 4u);
+    UINT32 blockHeight = DivUp(desc.Height, 4u);
+    UINT32 pitch = blockWidth * GetBytesPerBlock(desc.Format);
+    const char *pSrcData = reinterpret_cast<const char *>(textureDesc.pData);
+
+    std::vector<D3D11_SUBRESOURCE_DATA> data;
+    data.resize(desc.MipLevels);
+    for (UINT32 i = 0; i < desc.MipLevels; i++) {
+      data[i].pSysMem = pSrcData;
+      data[i].SysMemPitch = pitch;
+      data[i].SysMemSlicePitch = 0;
+
+      pSrcData += pitch * blockHeight;
+      blockHeight = max(1u, blockHeight / 2);
+      blockWidth = max(1u, blockWidth / 2);
+      pitch = blockWidth * GetBytesPerBlock(desc.Format);
+    }
+    result = m_pDevice->CreateTexture2D(&desc, data.data(), &m_pTextureNM);
+    assert(SUCCEEDED(result));
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pTextureNM, WCSToMBS(TextureName));
+    }
+
+    free(textureDesc.pData);
+  }
+  if (SUCCEEDED(result)) {
+    D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+    desc.Format = textureFmt;
+    desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    desc.Texture2D.MipLevels = 11;
+    desc.Texture2D.MostDetailedMip = 0;
+
+    result = m_pDevice->CreateShaderResourceView(m_pTextureNM, &desc,
+                                                 &m_pTextureViewNM);
+  }
+
+  if (SUCCEEDED(result)) {
     D3D11_SAMPLER_DESC desc = {};
 
     // desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -898,9 +1002,11 @@ HRESULT Renderer::InitScene() {
   if (SUCCEEDED(result)) {
     result = InitCubemap();
   }
-
   if (SUCCEEDED(result)) {
     result = InitRect();
+  }
+  if (SUCCEEDED(result)) {
+    result = InitSmallSphere();
   }
 
   assert(SUCCEEDED(result));
@@ -979,13 +1085,12 @@ HRESULT Renderer::InitSphere() {
   ID3DBlob *pSphereVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
     result = CompileAndCreateShader(
-        L"../shaders/SphereTexture.vs",
-        (ID3D11DeviceChild **)&m_pSphereVertexShader, &pSphereVertexShaderCode);
+        L"../shaders/SphereTexture.vs", (ID3D11DeviceChild **)&m_pSphereVertexShader, {},
+        &pSphereVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
-    result =
-        CompileAndCreateShader(L"../shaders/SphereTexture.ps",
-                               (ID3D11DeviceChild **)&m_pSpherePixelShader);
+    result = CompileAndCreateShader(
+        L"../shaders/SphereTexture.ps", (ID3D11DeviceChild **)&m_pSpherePixelShader);
   }
 
   if (SUCCEEDED(result)) {
@@ -1025,6 +1130,138 @@ HRESULT Renderer::InitSphere() {
       result = SetResourceName(m_pSphereGeomBuffer, "SphereGeomBuffer");
     }
   }
+
+  return result;
+}
+
+HRESULT Renderer::InitSmallSphere() {
+  static const D3D11_INPUT_ELEMENT_DESC InputDesc[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+       D3D11_INPUT_PER_VERTEX_DATA, 0}};
+
+  HRESULT result = S_OK;
+
+  static const size_t SphereSteps = 8;
+
+  std::vector<Point3f> sphereVertices;
+  std::vector<UINT16> indices;
+
+  size_t indexCount;
+  size_t vertexCount;
+
+  GetSphereDataSize(SphereSteps, SphereSteps, indexCount, vertexCount);
+
+  sphereVertices.resize(vertexCount);
+  indices.resize(indexCount);
+
+  m_smallSphereIndexCount = (UINT)indexCount;
+
+  CreateSphere(SphereSteps, SphereSteps, indices.data(), sphereVertices.data());
+
+  for (auto &v : sphereVertices) {
+    v = v * 0.125f;
+  }
+
+  // Create vertex buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = (UINT)(sphereVertices.size() * sizeof(Point3f));
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = sphereVertices.data();
+    data.SysMemPitch = (UINT)(sphereVertices.size() * sizeof(Point3f));
+    data.SysMemSlicePitch = 0;
+
+    result = m_pDevice->CreateBuffer(&desc, &data, &m_pSmallSphereVertexBuffer);
+    assert(SUCCEEDED(result));
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pSmallSphereVertexBuffer,
+                               "SmallSphereVertexBuffer");
+    }
+  }
+
+  // Create index buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = (UINT)(indices.size() * sizeof(UINT16));
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = indices.data();
+    data.SysMemPitch = (UINT)(indices.size() * sizeof(UINT16));
+    data.SysMemSlicePitch = 0;
+
+    result = m_pDevice->CreateBuffer(&desc, &data, &m_pSmallSphereIndexBuffer);
+    assert(SUCCEEDED(result));
+    if (SUCCEEDED(result)) {
+      result =
+          SetResourceName(m_pSmallSphereIndexBuffer, "SmallSphereIndexBuffer");
+    }
+  }
+
+  ID3DBlob *pSmallSphereVertexShaderCode = nullptr;
+  if (SUCCEEDED(result)) {
+    result = CompileAndCreateShader(
+        L"../shaders/TransColor.vs", (ID3D11DeviceChild **)&m_pSmallSphereVertexShader, {},
+        &pSmallSphereVertexShaderCode);
+  }
+  if (SUCCEEDED(result)) {
+    result = CompileAndCreateShader(
+        L"../shaders/TransColor.ps", (ID3D11DeviceChild **)&m_pSmallSpherePixelShader);
+  }
+
+  if (SUCCEEDED(result)) {
+    result = m_pDevice->CreateInputLayout(
+        InputDesc, 1, pSmallSphereVertexShaderCode->GetBufferPointer(),
+        pSmallSphereVertexShaderCode->GetBufferSize(),
+        &m_pSmallSphereInputLayout);
+    if (SUCCEEDED(result)) {
+      result =
+          SetResourceName(m_pSmallSphereInputLayout, "SmallSphereInputLayout");
+    }
+  }
+
+  SAFE_RELEASE(pSmallSphereVertexShaderCode);
+
+  // Create geometry buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = sizeof(RectGeomBuffer);
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    RectGeomBuffer geomBuffer;
+    geomBuffer.m = DirectX::XMMatrixIdentity();
+    geomBuffer.color = Point4f{1, 1, 1, 1};
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = &geomBuffer;
+    data.SysMemPitch = sizeof(geomBuffer);
+    data.SysMemSlicePitch = 0;
+
+    for (int i = 0; i < 10 && SUCCEEDED(result); i++) {
+      result =
+          m_pDevice->CreateBuffer(&desc, &data, &m_pSmallSphereGeomBuffers[i]);
+      if (SUCCEEDED(result)) {
+        result = SetResourceName(m_pSmallSphereGeomBuffers[i],
+                                 "SmallSphereGeomBuffer");
+      }
+    }
+  }
+
+  assert(SUCCEEDED(result));
 
   return result;
 }
@@ -1099,11 +1336,12 @@ HRESULT Renderer::InitRect() {
   if (SUCCEEDED(result)) {
     result = CompileAndCreateShader(L"../shaders/TransColor.vs",
                                     (ID3D11DeviceChild **)&m_pRectVertexShader,
-                                    &pRectVertexShaderCode);
+                                    {}, &pRectVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
     result = CompileAndCreateShader(L"../shaders/TransColor.ps",
-                                    (ID3D11DeviceChild **)&m_pRectPixelShader);
+                                    (ID3D11DeviceChild **)&m_pRectPixelShader,
+                                    {"USE_LIGHTS"});
   }
 
   if (SUCCEEDED(result)) {
@@ -1130,7 +1368,7 @@ HRESULT Renderer::InitRect() {
     RectGeomBuffer geomBuffer;
     geomBuffer.m =
         DirectX::XMMatrixTranslation(Rect0Pos.x, Rect0Pos.y, Rect0Pos.z);
-    geomBuffer.color = Point4f{0.25f, 0, 0.5f, 1.0f};
+    geomBuffer.color = Point4f{0.25f, 0, 0.5f, 0.5f};
 
     D3D11_SUBRESOURCE_DATA data;
     data.pSysMem = &geomBuffer;
@@ -1146,7 +1384,7 @@ HRESULT Renderer::InitRect() {
     if (SUCCEEDED(result)) {
       geomBuffer.m =
           DirectX::XMMatrixTranslation(Rect1Pos.x, Rect1Pos.y, Rect1Pos.z);
-      geomBuffer.color = Point4f{0, 0.5f, 0.5f, 1.0f};
+      geomBuffer.color = Point4f{0, 0.5f, 0.5f, 0.5f};
 
       result = m_pDevice->CreateBuffer(&desc, &data, &m_pRectGeomBuffer2);
     }
@@ -1228,6 +1466,8 @@ void Renderer::TermScene() {
 
   SAFE_RELEASE(m_pTextureView);
   SAFE_RELEASE(m_pTexture);
+  SAFE_RELEASE(m_pTextureViewNM);
+  SAFE_RELEASE(m_pTextureNM);
 
   SAFE_RELEASE(m_pRasterizerState);
   SAFE_RELEASE(m_pDepthState);
@@ -1274,6 +1514,16 @@ void Renderer::TermScene() {
   // Term depth buffer
   SAFE_RELEASE(m_pDepthBuffer);
   SAFE_RELEASE(m_pDepthBufferDSV);
+
+  // Term small sphere
+  SAFE_RELEASE(m_pSmallSphereIndexBuffer);
+  SAFE_RELEASE(m_pSmallSphereVertexBuffer);
+  SAFE_RELEASE(m_pSmallSphereInputLayout);
+  SAFE_RELEASE(m_pSmallSphereVertexShader);
+  SAFE_RELEASE(m_pSmallSpherePixelShader);
+  for (int i = 0; i < 10; i++) {
+    SAFE_RELEASE(m_pSmallSphereGeomBuffers[i]);
+  }
 }
 
 void Renderer::RenderSphere() {
@@ -1297,6 +1547,30 @@ void Renderer::RenderSphere() {
   m_pDeviceContext->VSSetConstantBuffers(0, 2, cbuffers);
   m_pDeviceContext->PSSetShader(m_pSpherePixelShader, nullptr, 0);
   m_pDeviceContext->DrawIndexed(m_sphereIndexCount, 0, 0);
+}
+
+void Renderer::RenderSmallSpheres() {
+  m_pDeviceContext->OMSetBlendState(m_pOpaqueBlendState, nullptr, 0xffffffff);
+  m_pDeviceContext->OMSetDepthStencilState(m_pDepthState, 0);
+
+  m_pDeviceContext->IASetIndexBuffer(m_pSmallSphereIndexBuffer,
+                                     DXGI_FORMAT_R16_UINT, 0);
+  ID3D11Buffer *vertexBuffers[] = {m_pSmallSphereVertexBuffer};
+  UINT strides[] = {12};
+  UINT offsets[] = {0};
+  m_pDeviceContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
+  m_pDeviceContext->IASetInputLayout(m_pSmallSphereInputLayout);
+  m_pDeviceContext->IASetPrimitiveTopology(
+      D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  m_pDeviceContext->VSSetShader(m_pSmallSphereVertexShader, nullptr, 0);
+  m_pDeviceContext->PSSetShader(m_pSmallSpherePixelShader, nullptr, 0);
+
+  for (int i = 0; i < m_sceneBuffer.lightCount.x; i++) {
+    ID3D11Buffer *cbuffers[] = {m_pSceneBuffer, m_pSmallSphereGeomBuffers[i]};
+    m_pDeviceContext->VSSetConstantBuffers(0, 2, cbuffers);
+    m_pDeviceContext->PSSetConstantBuffers(0, 2, cbuffers);
+    m_pDeviceContext->DrawIndexed(m_smallSphereIndexCount, 0, 0);
+  }
 }
 
 void Renderer::RenderRects() {
@@ -1325,7 +1599,6 @@ void Renderer::RenderRects() {
                              sinf(m_camera.theta),
                              cosf(m_camera.theta) * sinf(m_camera.phi)} *
                          m_camera.r;
-
   for (int i = 0; i < 4; i++) {
     d0 = max(d0, (cameraPos - m_boundingRects[0].v[i]).lengthSqr());
     d1 = max(d1, (cameraPos - m_boundingRects[1].v[i]).lengthSqr());
@@ -1354,9 +1627,50 @@ void Renderer::RenderRects() {
   }
 }
 
-HRESULT Renderer::CompileAndCreateShader(const std::wstring &path,
-                                         ID3D11DeviceChild **ppShader,
-                                         ID3DBlob **ppCode) {
+class D3DInclude : public ID3DInclude {
+  STDMETHOD(Open)
+  (THIS_ D3D_INCLUDE_TYPE IncludeType, LPCSTR pFileName, LPCVOID pParentData,
+   LPCVOID *ppData, UINT *pBytes) {
+    FILE *pFile = nullptr;
+    fopen_s(&pFile, pFileName, "rb");
+    assert(pFile != nullptr);
+    if (pFile == nullptr) {
+      return E_FAIL;
+    }
+
+    fseek(pFile, 0, SEEK_END);
+    long long size = _ftelli64(pFile);
+    fseek(pFile, 0, SEEK_SET);
+
+    VOID *pData = malloc(size);
+    if (pData == nullptr) {
+      fclose(pFile);
+      return E_FAIL;
+    }
+
+    size_t rd = fread(pData, 1, size, pFile);
+    assert(rd == (size_t)size);
+
+    if (rd != (size_t)size) {
+      fclose(pFile);
+      free(pData);
+      return E_FAIL;
+    }
+
+    *ppData = pData;
+    *pBytes = (UINT)size;
+
+    return S_OK;
+  }
+  STDMETHOD(Close)(THIS_ LPCVOID pData) {
+    free(const_cast<void *>(pData));
+    return S_OK;
+  }
+};
+
+HRESULT Renderer::CompileAndCreateShader(
+    const std::wstring &path, ID3D11DeviceChild **ppShader,
+    const std::vector<std::string> &defines, ID3DBlob **ppCode) {
   // Try to load shader's source code first
   FILE *pFile = nullptr;
   _wfopen_s(&pFile, path.c_str(), L"rb");
@@ -1397,12 +1711,24 @@ HRESULT Renderer::CompileAndCreateShader(const std::wstring &path,
   flags1 |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif // _DEBUG
 
+  D3DInclude includeHandler;
+
+  std::vector<D3D_SHADER_MACRO> shaderDefines;
+  shaderDefines.resize(defines.size() + 1);
+  for (int i = 0; i < defines.size(); i++) {
+    shaderDefines[i].Name = defines[i].c_str();
+    shaderDefines[i].Definition = "";
+  }
+  shaderDefines.back().Name = nullptr;
+  shaderDefines.back().Definition = nullptr;
+
   // Try to compile
   ID3DBlob *pCode = nullptr;
   ID3DBlob *pErrMsg = nullptr;
-  HRESULT result = D3DCompile(data.data(), data.size(), WCSToMBS(path).c_str(),
-                              nullptr, nullptr, entryPoint.c_str(),
-                              platform.c_str(), flags1, 0, &pCode, &pErrMsg);
+  HRESULT result =
+      D3DCompile(data.data(), data.size(), WCSToMBS(path).c_str(),
+                 shaderDefines.data(), &includeHandler, entryPoint.c_str(),
+                 platform.c_str(), flags1, 0, &pCode, &pErrMsg);
   if (!SUCCEEDED(result) && pErrMsg != nullptr) {
     OutputDebugStringA((const char *)pErrMsg->GetBufferPointer());
   }
