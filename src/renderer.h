@@ -1,6 +1,7 @@
 #pragma once
 
 #include "point.h"
+#include "primitive.h"
 #include <d3d11.h>
 #include <dxgi.h>
 #include <minwindef.h>
@@ -230,4 +231,6 @@ private:
     size_t m_prevUSec;
 
     SceneBuffer m_sceneBuffer;
+
+    Primitive* m_pSurface;
 };

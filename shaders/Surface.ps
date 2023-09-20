@@ -1,0 +1,39 @@
+#include "../shaders/Light.h"
+
+TextureCube colorTexture : register (t0);
+
+SamplerState colorSampler : register(s0);
+
+struct VSOutput
+{
+    float4 pos : SV_Position;
+    float4 worldPos : POSITION;
+    float3 norm : NORMAL;
+};
+
+cbuffer GeomBuffer : register (b1)
+{
+    float4x4 model;
+    float4x4 norm;
+    float4 color;
+};
+
+float4 ps(VSOutput pixel) : SV_Target0
+{
+    float3 viewDir = normalize(pixel.worldPos.xyz - cameraPos.xyz);
+    float3 reflectDir = reflect(viewDir, normalize(pixel.norm));
+    
+    float cosTheta = clamp(-1, 1, dot(normalize(pixel.norm), -viewDir));
+    
+    if (cosTheta < 0) {
+		return color;
+    }
+
+    float r0 = pow((0.33 / 2.33), 2);
+    float r = r0 + (1 - r0) * pow((1 - cosTheta), 5);
+
+    float4 finalColor = (1 - r) * float4(ColorWater(color.xyz, normalize(pixel.norm), pixel.worldPos.xyz, 10.0), color.w);
+    finalColor += r * float4(colorTexture.Sample(colorSampler, reflectDir).xyz, 1);
+
+    return finalColor;
+}

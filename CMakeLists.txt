@@ -1,12 +1,13 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.26)
 project(wat24)
 
 
 set(SRC
 ./src/main.cpp
-./src/renderer.cpp
+"src/renderer.cpp"
+"src/primitive.cpp"
 ./src/DDS.cpp
-)
+ "src/water.h" "src/water.cpp")
 
 add_executable(
   test

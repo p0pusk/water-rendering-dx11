@@ -210,12 +210,14 @@ bool Renderer::Init(HWND hWnd) {
   SAFE_RELEASE(pFactory);
 
   if (SUCCEEDED(result)) {
-    m_sceneBuffer.lightCount.x = 2;
+    m_sceneBuffer.lightCount.x = 3;
     m_sceneBuffer.lights[0].pos = Point4f{0, 1.05f, 0, 1};
     m_sceneBuffer.lights[0].color = Point4f{1, 1, 0};
     m_sceneBuffer.lights[1].pos = Point4f{2, 1.05f, 0, 1};
     m_sceneBuffer.lights[1].color = Point4f{0.75f, 0.75f, 1};
-    m_sceneBuffer.ambientColor = Point4f(0, 0, 0.2f, 0);
+    m_sceneBuffer.lights[2].pos = Point4f{-0.5f, 0.2f, -1.5f, 1};
+    m_sceneBuffer.lights[2].color = Point4f{0.75f, 0.45f, 0.25f};
+    m_sceneBuffer.ambientColor = Point4f(0, 0, 0, 0);
   }
 
   if (FAILED(result)) {
@@ -281,7 +283,10 @@ bool Renderer::Update() {
 
     // Model matrix
     // Angle is reversed, as DirectXMath calculates it as clockwise
-    DirectX::XMMATRIX m = DirectX::XMMatrixRotationAxis(
+    DirectX::XMMATRIX m = DirectX::XMMatrixIdentity(); 
+    m *= DirectX::XMMatrixScaling(10, 1, 10);
+    m *= DirectX::XMMatrixTranslation(0, -1, 0);
+    m *= DirectX::XMMatrixRotationAxis(
         DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f), -(float)m_angle);
 
     geomBuffer.m = m;
@@ -429,7 +434,9 @@ bool Renderer::Render() {
 
   RenderSphere();
 
-  RenderRects();
+  m_pSurface->Render();
+
+  // RenderRects();
 
   // Rendering
   HRESULT result = m_pSwapChain->Present(0, 0);
@@ -1007,6 +1014,10 @@ HRESULT Renderer::InitScene() {
   }
   if (SUCCEEDED(result)) {
     result = InitSmallSphere();
+  }
+  if (SUCCEEDED(result)) {
+    m_pSurface = new Primitive(m_pDevice, m_pDeviceContext, m_pSceneBuffer, m_pSampler, m_pCubemapView);
+    result = m_pSurface->Init(Point3f(0, 0, 0));
   }
 
   assert(SUCCEEDED(result));
