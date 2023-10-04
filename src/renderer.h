@@ -2,6 +2,7 @@
 
 #include "point.h"
 #include "primitive.h"
+#include "sph.h"
 #include <d3d11.h>
 #include <dxgi.h>
 #include <minwindef.h>
@@ -121,7 +122,7 @@ private:
         DirectX::XMMATRIX vp;
         Point4f cameraPos;
         Point4i lightCount; // x - light count (max 10)
-        Light lights[10];
+        Light lights[10000];
         Point4f ambientColor;
     };
 
@@ -179,7 +180,7 @@ private:
     UINT m_sphereIndexCount;
 
     // For small sphere
-    ID3D11Buffer* m_pSmallSphereGeomBuffers[10];
+    ID3D11Buffer* m_pSmallSphereGeomBuffers[1000];
     ID3D11Buffer* m_pSmallSphereVertexBuffer;
     ID3D11Buffer* m_pSmallSphereIndexBuffer;
     ID3D11PixelShader* m_pSmallSpherePixelShader;
@@ -233,4 +234,6 @@ private:
     SceneBuffer m_sceneBuffer;
 
     Primitive* m_pSurface;
+
+    SPH* sph;
 };

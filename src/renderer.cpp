@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "sph.h"
 #include "DDS.h"
 #include "point.h"
 #include "utils.h"
@@ -209,15 +210,26 @@ bool Renderer::Init(HWND hWnd) {
   SAFE_RELEASE(pSelectedAdapter);
   SAFE_RELEASE(pFactory);
 
+  sph = new SPH(1000);
+  sph->Init();
+
   if (SUCCEEDED(result)) {
-    m_sceneBuffer.lightCount.x = 3;
-    m_sceneBuffer.lights[0].pos = Point4f{0, 1.05f, 0, 1};
-    m_sceneBuffer.lights[0].color = Point4f{1, 1, 0};
-    m_sceneBuffer.lights[1].pos = Point4f{2, 1.05f, 0, 1};
-    m_sceneBuffer.lights[1].color = Point4f{0.75f, 0.75f, 1};
-    m_sceneBuffer.lights[2].pos = Point4f{-0.5f, 0.2f, -1.5f, 1};
-    m_sceneBuffer.lights[2].color = Point4f{0.75f, 0.45f, 0.25f};
-    m_sceneBuffer.ambientColor = Point4f(0, 0, 0, 0);
+
+    // m_sceneBuffer.lightCount.x = 3;
+    // m_sceneBuffer.lights[0].pos = Point4f{0, 1.05f, 0, 1};
+    // m_sceneBuffer.lights[0].color = Point4f{1, 1, 0};
+    // m_sceneBuffer.lights[1].pos = Point4f{2, 1.05f, 0, 1};
+    // m_sceneBuffer.lights[1].color = Point4f{0.75f, 0.75f, 1};
+    // m_sceneBuffer.lights[2].pos = Point4f{-0.5f, 0.2f, -1.5f, 1};
+    // m_sceneBuffer.lights[2].color = Point4f{0.75f, 0.45f, 0.25f};
+    // m_sceneBuffer.ambientColor = Point4f(0, 0, 0, 0);
+
+    m_sceneBuffer.lightCount.x = sph->m_particles.size();
+    for (int i = 0; i < sph->m_particles.size( ); i++) {
+      auto pos = sph->m_particles[i].position;
+      m_sceneBuffer.lights[i].pos = Point4f(pos.x, pos.y, pos.z);
+      m_sceneBuffer.lights[i].color = Point4f(0, 0, 1, 1);
+    }
   }
 
   if (FAILED(result)) {
@@ -309,6 +321,14 @@ bool Renderer::Update() {
 
   // Move light bulb spheres
   {
+     sph->Update(deltaSec);
+
+    for (int i = 0; i < sph->m_particles.size( ); i++) {
+      auto pos = sph->m_particles[i].position;
+      m_sceneBuffer.lights[i].pos = Point4f(pos.x, pos.y, pos.z);
+      m_sceneBuffer.lights[i].color = Point4f(0, 0, 1, 1);
+    }
+
     for (int i = 0; i < m_sceneBuffer.lightCount.x; i++) {
       RectGeomBuffer geomBuffer;
       geomBuffer.m = DirectX::XMMatrixTranslation(
@@ -421,12 +441,12 @@ bool Renderer::Render() {
   m_pDeviceContext->VSSetConstantBuffers(0, 2, cbuffers);
   m_pDeviceContext->PSSetConstantBuffers(0, 2, cbuffers);
   m_pDeviceContext->PSSetShader(m_pPixelShader, nullptr, 0);
-  m_pDeviceContext->DrawIndexed(36, 0, 0);
+  // m_pDeviceContext->DrawIndexed(36, 0, 0);
 
   ID3D11Buffer *cbuffers2[] = {m_pGeomBuffer2};
   m_pDeviceContext->VSSetConstantBuffers(1, 1, cbuffers2);
   m_pDeviceContext->PSSetConstantBuffers(1, 1, cbuffers2);
-  m_pDeviceContext->DrawIndexed(36, 0, 0);
+  // m_pDeviceContext->DrawIndexed(36, 0, 0);
 
   if (m_showLightBulbs) {
     RenderSmallSpheres();
@@ -434,7 +454,7 @@ bool Renderer::Render() {
 
   RenderSphere();
 
-  m_pSurface->Render();
+  // m_pSurface->Render();
 
   // RenderRects();
 
@@ -1152,7 +1172,7 @@ HRESULT Renderer::InitSmallSphere() {
 
   HRESULT result = S_OK;
 
-  static const size_t SphereSteps = 8;
+  static const size_t SphereSteps = 4;
 
   std::vector<Point3f> sphereVertices;
   std::vector<UINT16> indices;
@@ -1262,7 +1282,7 @@ HRESULT Renderer::InitSmallSphere() {
     data.SysMemPitch = sizeof(geomBuffer);
     data.SysMemSlicePitch = 0;
 
-    for (int i = 0; i < 10 && SUCCEEDED(result); i++) {
+    for (int i = 0; i < 1000 && SUCCEEDED(result); i++) {
       result =
           m_pDevice->CreateBuffer(&desc, &data, &m_pSmallSphereGeomBuffers[i]);
       if (SUCCEEDED(result)) {
