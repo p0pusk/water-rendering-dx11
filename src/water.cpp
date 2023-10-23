@@ -1,119 +1,163 @@
 #include "water.h"
 
-// du/dt = F - u - 1/ro grad(p)
+HRESULT Water::Init() { return Init(m_numParticles); }
 
-using namespace DirectX;
+HRESULT Water::Init(int numParticles) {
+  m_numParticles = numParticles;
+  m_pSph = new SPH(m_numParticles);
+  m_pSph->Init();
 
+  static const D3D11_INPUT_ELEMENT_DESC InputDesc[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+       D3D11_INPUT_PER_VERTEX_DATA, 0}};
 
-void WaterGrid::Init() {
-  m_pressure.resize(m_x + 2);
-  for (int i = 0; i < m_x + 2; i++) {
-    m_pressure[i].resize(m_y + 2);
-    for (int j = 0; j < m_y + 2; j++) {
-      m_pressure[i][j].resize(m_z + 2);
+  HRESULT result = S_OK;
+
+  static const size_t SphereSteps = 4;
+
+  std::vector<Vector3> sphereVertices;
+  std::vector<UINT16> indices;
+
+  size_t indexCount;
+  size_t vertexCount;
+
+  GetSphereDataSize(SphereSteps, SphereSteps, indexCount, vertexCount);
+
+  sphereVertices.resize(vertexCount);
+  indices.resize(indexCount);
+
+  m_sphereIndexCount = (UINT)indexCount;
+
+  CreateSphere(SphereSteps, SphereSteps, indices.data(), sphereVertices.data());
+
+  for (auto &v : sphereVertices) {
+    v = v * 0.125f;
+  }
+
+  // Create vertex buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = (UINT)(sphereVertices.size() * sizeof(Vector3));
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = sphereVertices.data();
+    data.SysMemPitch = (UINT)(sphereVertices.size() * sizeof(Vector3));
+    data.SysMemSlicePitch = 0;
+
+    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pVertexBuffer);
+    assert(SUCCEEDED(result));
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pVertexBuffer, "SmallSphereVertexBuffer");
     }
   }
 
-  m_u.resize(m_x + 2);
-  m_v.resize(m_x + 2);
-  m_w.resize(m_x + 2);
-  for (int i = 0; i < m_x + 2; i++) {
-    m_u[i].resize(m_y + 2);
-    m_v[i].resize(m_y + 2);
-    m_w[i].resize(m_y + 2);
-    for (int j = 0; j < m_y + 2; j++) {
-      m_u[i][j].resize(m_z + 2);
-      m_v[i][j].resize(m_z + 2);
-      m_w[i][j].resize(m_z + 2);
+  // Create index buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = (UINT)(indices.size() * sizeof(UINT16));
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = indices.data();
+    data.SysMemPitch = (UINT)(indices.size() * sizeof(UINT16));
+    data.SysMemSlicePitch = 0;
+
+    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pIndexBuffer);
+    assert(SUCCEEDED(result));
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pIndexBuffer, "ParticleIndexBuffer");
     }
   }
 
-  // boundary values no-slip
-  for (int y = 1; y < m_y + 1; y++) {
-    for (int z = 1; z < m_z + 1; z++) {
-      m_u[0][y][z] = 0;
-      m_u[m_x+1][y][z] = 0;
-      m_v[0][y][z] = -m_v[1][y][z];
-      m_v[m_x+1][y][z] = -m_v[m_x][y][z];
-      m_w[0][y][z] = -m_w[1][y][z];
-      m_w[m_x+1][y][z] = -m_w[m_x][y][z];
+  ID3DBlob *pSmallSphereVertexShaderCode = nullptr;
+  if (SUCCEEDED(result)) {
+    result = CompileAndCreateShader(L"../shaders/Particle.vs",
+                                    (ID3D11DeviceChild **)&m_pVertexShader, {},
+                                    &pSmallSphereVertexShaderCode);
+  }
+  if (SUCCEEDED(result)) {
+    result = CompileAndCreateShader(L"../shaders/Particle.ps",
+                                    (ID3D11DeviceChild **)&m_pPixelShader);
+  }
+
+  if (SUCCEEDED(result)) {
+    result = m_pDXC->m_pDevice->CreateInputLayout(
+        InputDesc, 1, pSmallSphereVertexShaderCode->GetBufferPointer(),
+        pSmallSphereVertexShaderCode->GetBufferSize(), &m_pInputLayout);
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pInputLayout, "ParticleInputLayout");
     }
   }
 
-  for (int x = 1; x < m_x + 1; x++) {
-    for (int z = 1; z < m_z + 1; z++) {
-      m_u[x][0][z] = -m_u[x][1][z];
-      m_u[x][m_y+1][z] = -m_u[x][m_y][z];
-      m_v[x][0][z] = 0;
-      m_v[x][m_y+1][z] = 0;
-      m_w[x][0][z] = -m_w[x][1][z];
-      m_w[x][m_y+1][z] = -m_w[x][m_y][z];
+  SAFE_RELEASE(pSmallSphereVertexShaderCode);
+
+  // Create geometry buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = sizeof(GeomBuffer);
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    GeomBuffer geomBuffer;
+    geomBuffer.color = Vector4{0, 0, 1, 1};
+    for (int i = 0; i < m_numParticles && SUCCEEDED(result); i++) {
+      geomBuffer.m[i] = DirectX::XMMatrixIdentity();
+    }
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = &geomBuffer;
+    data.SysMemPitch = sizeof(geomBuffer);
+    data.SysMemSlicePitch = 0;
+    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pGeomBuffer);
+
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pGeomBuffer, "ParticlesGeomBuffer");
     }
   }
 
-  for (int x = 1; x < m_x + 1; x++) {
-    for (int y = 1; y < m_y + 1; y++) {
-      m_u[x][y][0] = -m_u[x][y][1];
-      m_u[x][y][m_z + 1] = -m_u[x][y][m_z];
-      m_v[x][y][0] = -m_v[x][y][1];
-      m_v[x][y][m_z + 1] = -m_v[x][y][m_z];
-      m_w[x][y][0] = 0;
-      m_w[x][y][m_z + 1] = 0;
-    }
-  }
+  return result;
 }
 
-SimpleMath::Vector3 WaterGrid::VelocityDerivative(SimpleMath::Vector3 u) {
-  return m_forces - u - SimpleMath::Vector3::One * 1 / m_ro;
+void Water::Update(float dt) {
+  m_pSph->Update(dt);
+  GeomBuffer gb;
+  for (int i = 0; i < m_numParticles; i++) {
+    gb.color = {0, 0.25, 0.75, 1};
+    auto &pos = m_pSph->m_particles[i].position;
+    gb.m[i] = DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+  }
+  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pGeomBuffer, 0, nullptr, &gb, 0,
+                                              0);
 }
 
-void WaterGrid::TimeStep() {
-  for (int x = 1; x <= m_x; x++) {
-    for (int y = 1; y <= m_y; y++) {
-      for (int z = 1; z <= m_z; z++) {
+void Water::Render(ID3D11Buffer *pSceneBuffer) {
+  auto &pContext = m_pDXC->m_pDeviceContext;
+  pContext->OMSetDepthStencilState(m_pDXC->m_pDepthState, 0);
+  pContext->OMSetBlendState(m_pDXC->m_pOpaqueBlendState, nullptr, 0xffffffff);
 
-        float d2udx2 = (m_u[x + 1][y][z] - 2 * m_u[x][y][z] + m_u[x - 1][y][z]) / m_dx / m_dx;
-        float d2udy2 = (m_u[x][y + 1][z] - 2 * m_u[x][y][z] + m_u[x][y - 1][z]) / m_dy / m_dy;
-        float d2udz2 = (m_u[x][y][z + 1] - 2 * m_u[x][y][z] + m_u[x][y][z - 1]) / m_dz / m_dz;
-        
-        // TODO: implement gamma calcuation
-        float gamma = 0;
-        float du2dx = 1 / m_dx / 4 * (pow((m_u[x][y][z] + m_u[x + 1][y][z]), 2) - pow(m_u[x - 1][y][z] + m_u[x][y][z], 2)) +
-          gamma * 1 / m_dx / 4 * (abs(m_u[x][y][z] + m_u[x + 1][y][z]) * (m_u[x][y][z] - m_u[x + 1][y][z])
-            - abs(m_u[x - 1][y][z] + m_u[x][y][z]) * (m_u[x - 1][y][z] - m_u[x][y][z]));
-
-        float dv2dy = 1 / m_dy / 4 * (pow((m_v[x][y][z] + m_v[x][y + 1][z]), 2) - pow(m_v[x][y - 1][z] + m_v[x][y][z], 2)) +
-          gamma * 1 / m_dy / 4 * (abs(m_v[x][y][z] + m_v[x][y + 1][z]) * (m_v[x][y][z] - m_v[x][y + 1][z])
-            - abs(m_v[x][y - 1][z] + m_v[x][y][z]) * (m_v[x][y - 1][z] - m_v[x][y][z]));
-
-        float dw2dz = 1 / m_dz / 4 * (pow((m_w[x][y][z] + m_w[x][y][z + 1]), 2) - pow(m_w[x][y][z - 1] + m_w[x][y][z], 2)) +
-          gamma * 1 / m_dz / 4 * (abs(m_w[x][y][z] + m_w[x][y][z + 1]) * (m_w[x][y][z] - m_w[x][y][z + 1])
-            - abs(m_w[x][y][z - 1] + m_w[x][y][z]) * (m_w[x][y][z - 1] - m_w[x][y][z]));
-
-
-        float duvdx = 1 / m_dx / 4 *
-          ((m_u[x][y][z] + m_u[x][y+1][z]) * (m_v[x][y][z] + m_v[x+1][y][z]) -
-          (m_u[x-1][y][z] + m_u[x-1][y+1][z]) * (m_v[x-1][y][z] + m_v[x][y][z]))
-          + gamma * 1 / m_dx / 4 *
-          (abs(m_u[x][y][z] + m_u[x][y+1][z]) * (m_v[x][y][z] - m_v[x + 1][y][z])
-            - abs(m_u[x - 1][y][z] + m_u[x-1][y+1][z]) * (m_v[x - 1][y][z] - m_v[x][y][z]));
-
-        float duvdy = 1 / m_dy / 4 *
-          ((m_v[x][y][z] + m_v[x + 1][y][z]) * (m_u[x][y][z] + m_u[x][y + 1][z]) -
-            (m_v[x][y - 1][z] + m_v[x + 1][y - 1][z]) * (m_u[x][y - 1][z] + m_u[x][y][z]))
-          + gamma * 1 / m_dy / 4 *
-          (abs(m_v[x][y][z] + m_v[x][y + 1][z]) * (m_u[x][y][z] - m_u[x][y + 1][z])
-            - abs(m_v[x][y - 1][z] + m_v[x + 1][y - 1][z]) * (m_u[x][y - 1][z] - m_u[x][y][z]));
-
-
-
-      }
-    }
-  }
-}
-
-void WaterGrid::PressureSolve() {
-  std::vector<float> A(m_x + m_y + m_z);
-  for (int x = 1; x <= m_x; x++) {
-  }
+  pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};
+  UINT strides[] = {sizeof(Vector3)};
+  UINT offsets[] = {0};
+  pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
+  pContext->IASetInputLayout(m_pInputLayout);
+  pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  pContext->VSSetShader(m_pVertexShader, nullptr, 0);
+  pContext->PSSetShader(m_pPixelShader, nullptr, 0);
+  ID3D11Buffer *cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
+  pContext->VSSetConstantBuffers(0, 2, cbuffers);
+  pContext->PSSetConstantBuffers(0, 2, cbuffers);
+  pContext->DrawInstanced(m_sphereIndexCount, m_numParticles, 0, 0);
 }

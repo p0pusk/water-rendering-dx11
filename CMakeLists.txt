@@ -5,11 +5,14 @@ project(wat24)
 set(SRC
 ./src/main.cpp
 "src/renderer.cpp"
-"src/primitive.cpp"
+"src/surface.cpp"
 ./src/DDS.cpp
  "src/water.h" "src/water.cpp"
  "src/sph.cpp"
- "src/sph.h")
+ "src/sph.h"
+ 
+ "src/DXController.cpp"
+ "src/primitive.h"  "src/cubeMap.cpp" "src/primitive.cpp")
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/Library/DirectXTK ${CMAKE_BINARY_DIR}/bin/CMake/DirectXTK)
 

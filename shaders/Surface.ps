@@ -20,6 +20,9 @@ cbuffer GeomBuffer : register (b1)
 
 float4 ps(VSOutput pixel) : SV_Target0
 {
+#ifdef NO_LIGHTS
+    return color;
+#else
     float3 viewDir = normalize(pixel.worldPos.xyz - cameraPos.xyz);
     float3 reflectDir = reflect(viewDir, normalize(pixel.norm));
     
@@ -36,4 +39,5 @@ float4 ps(VSOutput pixel) : SV_Target0
     finalColor += r * float4(colorTexture.Sample(colorSampler, reflectDir).xyz, 1);
 
     return finalColor;
+#endif
 }

@@ -2,58 +2,48 @@
 
 #include <DirectXMath.h>
 #include <SimpleMath.h>
+
 #include <iostream>
 #include <vector>
 
-using namespace DirectX;
+#include "primitive.h"
+#include "sph.h"
 
-typedef std::vector < std::vector < std::vector <float>>> Cube;
-typedef std::vector < std::vector < std::vector <DirectX::SimpleMath::Vector3>>> VectorCube;
+using namespace DirectX::SimpleMath;
 
-class WaterGrid {
-  int m_iteration = 0;
-  int m_x;
-  int m_y;
-  int m_z;
+class Water : public GeometricPrimitive {
+  struct Vertex {
+    Vector3 pos;
+  };
 
-  float m_dx;
-  float m_dy;
-  float m_dz;
+  struct GeomBuffer {
+    DirectX::XMMATRIX m[1000];
+    Vector4 color;
+  };
 
-  // fluid density
-  float m_ro = 1000;
+ public:
+  Water(std::shared_ptr<DXController>& pDXController)
+      : GeometricPrimitive(pDXController),
+        m_pSph(nullptr),
+        m_pGeomBuffer(nullptr),
+        m_numParticles(1000) {}
 
-  DirectX::SimpleMath::Vector3 m_forces;
-
-  Cube m_pressure;
-
-  // velocity x component
-  Cube m_u;
-  // velocity y component
-  Cube m_v;
-  // velocity z component
-  Cube m_w;
-  
-  Cube m_F;
-  Cube m_G;
-  Cube m_H;
-
-  double m_dt;
-  double m_vMax = 1;
-  double m_kCFL = 1;
-
-
-  WaterGrid(int x, int y, int z, double dh)
-    :m_x(x), m_y(y), m_z(z), m_dx(dh) {
-
-    Init();
-
-    m_dt = m_kCFL * m_dx / m_vMax;
+  ~Water() {
+    delete m_pSph;
+    SAFE_RELEASE(m_pGeomBuffer);
   }
 
+  HRESULT Init() override;
+  HRESULT Init(int numParticles);
+  void Update(float dt);
+  void Render(ID3D11Buffer* pSceneBuffer = nullptr) override;
 
-  void Init();
-  void TimeStep();
-  void PressureSolve();
-  SimpleMath::Vector3 VelocityDerivative(SimpleMath::Vector3 u);
+ private:
+  int m_numParticles;
+
+  SPH* m_pSph;
+
+  ID3D11Buffer* m_pGeomBuffer;
+
+  UINT m_sphereIndexCount;
 };

@@ -1,43 +1,59 @@
 #pragma once
 
+#define _USE_MATH_DEFINES
+
+#include <SimpleMath.h>
+#include <math.h>
+
 #include <iostream>
 #include <vector>
-#include <SimpleMath.h>
-using namespace DirectX;
+
+using namespace DirectX::SimpleMath;
 
 struct Particle {
-	SimpleMath::Vector3 position;
-	float density;
-	float mass;
-	float pressure;
-	SimpleMath::Vector3 force;
-	SimpleMath::Vector3 velocity;
-	SimpleMath::Vector3 acceleration;
+  Vector3 position;
+  float density;
+  float mass;
+  float pressure;
+  Vector3 pressureGrad;
+  Vector3 viscosity;
+  Vector3 force;
+  Vector3 velocity;
 };
 
 class SPH {
-public:
-	std::vector<Particle> m_particles;
-	float m_h = 0.6;
-	float m_nu = 1;
-	float m_lambda = 0;
-	int m_n = 0;
+ public:
+  std::vector<Particle> m_particles;
 
-	// pressure constant
-	float m_k = 0.1;
-	float m_polytropicIndex = 1;
-	float m_star_mass = 2;
-	float m_star_radius = 1;
+  SPH(int n) : boxH(0.25f) {
+    m_particles.resize(n);
 
-	
-	SPH(int n) {
-		m_particles.resize(n);
-	};
+    h = 0.15f;
+    poly6 = 315.0f / (64.0f * M_PI * pow(h, 9));
+    spikyGrad = -45.0f / (M_PI * pow(h, 6));
+    spikyLap = 45.0f / (M_PI * pow(h, 6));
 
-	void Update(float dt);
-	void UpdateDensity();
-	void UpdateAcceleration();
-	SimpleMath::Vector3 GradKernel(SimpleMath::Vector3 v, float smoothing, float distance);
-	void Init();
-	float Kernel(float distance, float smoothing);
+    h2 = h * h;
+  };
+
+  void Update(float dt);
+  void Init();
+
+ public:
+  float poly6;
+  float spikyGrad;
+  float spikyLap;
+
+  // pressure constant
+  float dynamicViscosity = 3.5f;
+
+  float h;
+  float h2;
+  int n = 0;
+  float boxH;
+
+  void CheckBoundary(Particle& p);
+  float GradKernel(float r, float h);
+  float Kernel(float r, float h);
+  float LagrangianKernel(float r, float h);
 };

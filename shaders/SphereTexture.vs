@@ -1,10 +1,10 @@
-cbuffer SceneBuffer : register (b0)
+cbuffer SceneBuffer : register(b0)
 {
     float4x4 vp;
     float4 cameraPos;
 };
 
-cbuffer GeomBuffer : register (b1)
+cbuffer GeomBuffer : register(b1)
 {
     float4x4 model;
     float4 size; // x - size of sphere

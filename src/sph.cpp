@@ -1,85 +1,122 @@
 #include "sph.h"
 
-#define _USE_MATH_DEFINES
-#include <math.h>
 #include <random>
-
 
 void SPH::Init() {
   std::random_device dev;
   std::mt19937 rng(dev());
-  std::uniform_real_distribution<> dist(0, 5); 
+  boxH = 0.5f;
+
+  std::uniform_real_distribution<> dist((double)-boxH, (double)boxH);
+  std::uniform_real_distribution<> distY(0, 5);
 
   std::cout << dist(rng) << std::endl;
   for (auto& p : m_particles) {
-    p.mass = 0.01;
-    p.position = SimpleMath::Vector3(dist(rng), dist(rng), dist(rng));
-    m_lambda = 2 * m_k * (1 + m_polytropicIndex) *
-      pow(M_PI, -3 / (2 * m_polytropicIndex)) *
-      pow((m_star_mass * tgamma(5 / 2 + m_polytropicIndex)) / (pow(m_star_radius, 3) / tgamma(1 + m_polytropicIndex)), 1 / m_polytropicIndex) / pow(m_star_mass, 2);
-
-    p.velocity = SimpleMath::Vector3::Zero;
-    p.acceleration = SimpleMath::Vector3::Zero;
+    p.mass = 0.02f;
+    p.position = Vector3(dist(rng), distY(rng), dist(rng));
+    p.velocity = Vector3::Zero;
   }
 }
 
 void SPH::Update(float dt) {
-   m_n++;
+  n++;
 
-   UpdateDensity();
-   // update pressure
-   for (int i = 0; i < m_particles.size(); i++) {
-     auto& particle = m_particles[i];
-     particle.pressure = m_k * pow(particle.density, 1 + 1 / m_polytropicIndex);
-   }
-   UpdateAcceleration();
-
-   for (int i = 0; i < m_particles.size(); i++) {
-     m_particles[i].velocity +=  m_particles[i].acceleration * dt;
-     m_particles[i].position += m_particles[i].velocity * dt;
-   }
- }
-
-void SPH::UpdateDensity() {
-  for (int i = 0; i < m_particles.size(); i++) {
-    auto &particle = m_particles[i];
-    particle.density = 0;
-
-    for (int j = 0; j < m_particles.size(); j++) {
-      auto &neighbour = m_particles[j];
-      particle.density += neighbour.mass * Kernel(SimpleMath::Vector3::Distance(particle.position, neighbour.position), m_h);
+  // Compute density
+  for (auto& p : m_particles) {
+    p.density = 0;
+    for (auto& n : m_particles) {
+      float d2 = Vector3::DistanceSquared(p.position, n.position);
+      if (d2 < h2) {
+        p.density += n.mass * poly6 * pow(h2 - d2, 3);
+      }
     }
   }
-}
 
-void SPH::UpdateAcceleration() {
-  for (int i = 0; i < m_particles.size(); i++) {
-    auto& particle = m_particles[i];
-    particle.acceleration = SimpleMath::Vector3(0, -9.8, 0) / particle.density;
+  // Compute pressure
+  for (auto& p : m_particles) {
+    float k = 1;
+    float p0 = 1000;
+    p.pressure = k * (p.density - p0);
   }
 
-  for (int i = 0; i < m_particles.size(); i++) {
-    auto& particle = m_particles[i];
-     for (int j = 0; j < m_particles.size(); j++) {
-       auto &neighbour = m_particles[j];
-       auto a = -particle.mass *
-         (particle.pressure + neighbour.pressure) / neighbour.density / particle.density / 2
-           * GradKernel(particle.position - neighbour.position, m_h, SimpleMath::Vector3::Distance(particle.position, neighbour.position));
-       particle.acceleration += a;
-     }
-   }
+  // Compute pressure force
+  for (auto& p : m_particles) {
+    p.pressureGrad = Vector3::Zero;
+    p.force = Vector3(0, -9.8f * p.density, 0);
+    for (auto& n : m_particles) {
+      float d = Vector3::Distance(p.position, n.position);
+      Vector3 dir = (p.position - n.position);
+      dir.Normalize();
+      if (d < h) {
+        p.pressureGrad += -dir * n.mass * (p.pressure + n.pressure) /
+                          (2 * n.density) * spikyGrad;
+      }
+    }
+  }
+
+  // Compute viscosity
+  for (auto& p : m_particles) {
+    p.viscosity = Vector3::Zero;
+    for (auto& n : m_particles) {
+      float d = Vector3::Distance(p.position, n.position);
+      if (d < h) {
+        p.viscosity += dynamicViscosity * n.mass * (n.velocity - p.velocity) /
+                       n.density * spikyLap * (h - d);
+      }
+    }
+  }
+
+  // TimeStep
+  for (auto& p : m_particles) {
+    p.velocity += dt * (p.pressureGrad + p.force + p.viscosity) / p.density;
+    // p.velocity += dt * (p.force + p.pressureGrad) / p.density;
+    p.position += dt * p.velocity;
+
+    // boundary condition
+    CheckBoundary(p);
+  }
 }
 
-SimpleMath::Vector3 SPH::GradKernel(SimpleMath::Vector3 v, float smoothing, float distance) {
-  return -45 / M_PI / pow(smoothing, 6) * distance
-    * SimpleMath::Vector3(
-      pow(smoothing - v.x, 2) / v.x,
-      pow(smoothing - v.y, 2) / v.y,
-      pow(smoothing - v.z, 2) / v.z);
+void SPH::CheckBoundary(Particle& p) {
+  float dampingCoeff = 0.5f;
+  if (p.position.y < 0) {
+    p.velocity.y *= -dampingCoeff;
+    p.position.y = 0 + 0.01f;
+  }
+  if (p.position.x < -boxH) {
+    p.velocity.x *= -dampingCoeff;
+    p.position.x = -boxH;
+  }
+  if (p.position.x > boxH) {
+    p.velocity.x *= -dampingCoeff;
+    p.position.x = boxH;
+  }
+  if (p.position.z < -boxH) {
+    p.velocity.z *= -dampingCoeff;
+    p.position.z = -boxH;
+  }
+  if (p.position.z > boxH) {
+    p.velocity.z *= -dampingCoeff;
+    p.position.z = boxH;
+  }
+}
+float SPH::GradKernel(float r, float h) {
+  if (r >= 0 && r <= h) {
+    return 45 / M_PI / pow(h, 6) * pow(h - r, 2);
+  }
+  return 0;
 }
 
-float SPH::Kernel(float distance, float smoothing) {
-  return 1 / pow(M_PI, 3 / 2) / pow(smoothing, 3) * exp(-pow(distance, 2) / pow(smoothing, 2));
+float SPH::Kernel(float r, float h) {
+  if (r >= 0 && r <= h) {
+    return 315 / 64 / M_PI / pow(h, 9) * pow(pow(h, 2) - pow(r, 2), 3);
+  }
+  return 0;
 }
 
-
+float SPH::LagrangianKernel(float r, float h) {
+  if (r >= 0 && r <= h) {
+    return 45 / M_PI / pow(h, 6) * (h - r);
+  }
+  return 0;
+}

@@ -17,8 +17,6 @@
 #include <d3dcommon.h>
 #include <dxgi.h>
 
-#include <DirectXMath.h>
-
 #define ASSERT_RETURN(expr, returnValue)                                       \
   {                                                                            \
     bool value = (expr);                                                       \

@@ -1,14 +1,14 @@
 #include "../shaders/Light.h"
 
-cbuffer GeomBuffer : register (b1)
+cbuffer GeomBuffer : register(b1)
 {
     float4x4 model;
     float4x4 norm;
     float4 shine; // x - shininess
 };
 
-Texture2D colorTexture : register (t0);
-Texture2D normalMapTexture : register (t1);
+Texture2D colorTexture : register(t0);
+Texture2D normalMapTexture : register(t1);
 
 SamplerState colorSampler : register(s0);
 
@@ -26,7 +26,7 @@ float4 ps(VSOutput pixel) : SV_Target0
     float3 color = colorTexture.Sample(colorSampler, pixel.uv).xyz;
     float3 finalColor = ambientColor * color;
 
-    float3 normal = float3(0,0,0);
+    float3 normal = float3(0, 0, 0);
     if (lightCount.y > 0)
     {
         float3 binorm = normalize(cross(pixel.norm, pixel.tang));
