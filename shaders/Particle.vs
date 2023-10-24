@@ -5,7 +5,7 @@ cbuffer SceneBuffer : register(b0)
 
 cbuffer GeomBuffer : register(b1)
 {
-    float4x4 model[10000];
+    float4x4 model[1000];
 };
 
 struct VSInput
@@ -17,6 +17,7 @@ struct VSInput
 struct VSOutput
 {
     float4 pos : SV_Position;
+    float3 worldPos : POSITION;
 };
 
 VSOutput vs(VSInput vertex)
@@ -25,6 +26,7 @@ VSOutput vs(VSInput vertex)
 
     float3 worldPos = mul(model[vertex.instanceID], float4(vertex.pos, 1.0)).xyz;
     result.pos = mul(vp, float4(worldPos, 1.0));
+    result.worldPos = worldPos;
 
     return result;
 }

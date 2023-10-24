@@ -5,15 +5,14 @@
 void SPH::Init() {
   std::random_device dev;
   std::mt19937 rng(dev());
-  boxH = 0.5f;
+  boxH = 0.15f;
 
   std::uniform_real_distribution<> dist((double)-boxH, (double)boxH);
-  std::uniform_real_distribution<> distY(0, 5);
 
   std::cout << dist(rng) << std::endl;
   for (auto& p : m_particles) {
-    p.mass = 0.02f;
-    p.position = Vector3(dist(rng), distY(rng), dist(rng));
+    p.mass = 0.2f;
+    p.position = Vector3(dist(rng), 1, dist(rng));
     p.velocity = Vector3::Zero;
   }
 }
@@ -45,11 +44,11 @@ void SPH::Update(float dt) {
     p.force = Vector3(0, -9.8f * p.density, 0);
     for (auto& n : m_particles) {
       float d = Vector3::Distance(p.position, n.position);
-      Vector3 dir = (p.position - n.position);
+      Vector3 dir = (n.position - p.position);
       dir.Normalize();
       if (d < h) {
-        p.pressureGrad += -dir * n.mass * (p.pressure + n.pressure) /
-                          (2 * n.density) * spikyGrad;
+        p.pressureGrad += dir * n.mass * (p.pressure + n.pressure) /
+                          (2 * n.density) * spikyGrad * std::pow(h - d, 2);
       }
     }
   }

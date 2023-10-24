@@ -158,15 +158,17 @@ void CubeMap::Render(ID3D11Buffer* pSceneBuffer) {
   ID3D11Buffer* vertexBuffers[] = {m_pVertexBuffer};
   UINT strides[] = {12};
   UINT offsets[] = {0};
-  ID3D11Buffer* cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
   m_pDXC->m_pDeviceContext->IASetVertexBuffers(0, 1, vertexBuffers, strides,
                                                offsets);
   m_pDXC->m_pDeviceContext->IASetInputLayout(m_pInputLayout);
+
   m_pDXC->m_pDeviceContext->IASetPrimitiveTopology(
       D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   m_pDXC->m_pDeviceContext->VSSetShader(m_pVertexShader, nullptr, 0);
-  m_pDXC->m_pDeviceContext->VSSetConstantBuffers(0, 2, cbuffers);
   m_pDXC->m_pDeviceContext->PSSetShader(m_pPixelShader, nullptr, 0);
+
+  ID3D11Buffer* cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
+  m_pDXC->m_pDeviceContext->VSSetConstantBuffers(0, 2, cbuffers);
   m_pDXC->m_pDeviceContext->DrawIndexed(m_sphereIndexCount, 0, 0);
 }
 

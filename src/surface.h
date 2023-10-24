@@ -18,7 +18,6 @@
 #include <chrono>
 #include <iostream>
 
-#include "point.h"
 #include "primitive.h"
 #include "utils.h"
 
@@ -26,14 +25,14 @@ using namespace DirectX::SimpleMath;
 
 class Surface : public GeometricPrimitive {
   struct Vertex {
-    Point3f pos;
-    Point3f norm;
+    Vector3 pos;
+    Vector3 norm;
   };
 
   struct GeomBuffer {
     DirectX::XMMATRIX m;
     DirectX::XMMATRIX norm;
-    Point4f color;
+    Vector4 color;
   };
 
  public:

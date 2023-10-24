@@ -25,7 +25,7 @@ class SPH {
  public:
   std::vector<Particle> m_particles;
 
-  SPH(int n) : boxH(0.25f) {
+  SPH(int n) : boxH(0.02f) {
     m_particles.resize(n);
 
     h = 0.15f;

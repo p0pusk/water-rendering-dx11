@@ -1,7 +1,6 @@
 #include "renderer.h"
 
 #include "DDS.h"
-#include "point.h"
 
 #define _USE_MATH_DEFINES
 
@@ -24,16 +23,16 @@
 #include <iostream>
 
 struct TextureTangentVertex {
-  Point3f pos;
+  Vector3 pos;
   DirectX::XMFLOAT2 tangent;
-  Point3f norm;
-  Point2f uv;
+  Vector3 norm;
+  Vector3 uv;
 };
 
 struct GeomBuffer {
   DirectX::XMMATRIX m;
   DirectX::XMMATRIX normalM;
-  Point4f shine;  // x - shininess
+  Vector4 shine;  // x - shininess
 };
 
 static const float CameraRotationSpeed = (float)M_PI * 2.0f;
@@ -41,22 +40,22 @@ static const float ModelRotationSpeed = (float)M_PI / 2.0f;
 
 static const float Eps = 0.00001f;
 
-void Renderer::Camera::GetDirections(Point3f& forward, Point3f& right) {
-  Point3f dir =
-      -Point3f{cosf(theta) * cosf(phi), sinf(theta), cosf(theta) * sinf(phi)};
+void Renderer::Camera::GetDirections(Vector3& forward, Vector3& right) {
+  Vector3 dir =
+      -Vector3{cosf(theta) * cosf(phi), sinf(theta), cosf(theta) * sinf(phi)};
   float upTheta = theta + (float)M_PI / 2;
-  Point3f up = Point3f{cosf(upTheta) * cosf(phi), sinf(upTheta),
+  Vector3 up = Vector3{cosf(upTheta) * cosf(phi), sinf(upTheta),
                        cosf(upTheta) * sinf(phi)};
-  right = up.cross(dir);
+  up.Cross(dir, right);
   right.y = 0.0f;
-  right.normalize();
+  right.Normalize();
 
   if (fabs(dir.x) > Eps || fabs(dir.z) > Eps) {
-    forward = Point3f{dir.x, 0.0f, dir.z};
+    forward = Vector3{dir.x, 0.0f, dir.z};
   } else {
-    forward = Point3f{up.x, 0.0f, up.z};
+    forward = Vector3{up.x, 0.0f, up.z};
   }
-  forward.normalize();
+  forward.Normalize();
 }
 
 const double Renderer::PanSpeed = 2.0;
@@ -82,7 +81,7 @@ bool Renderer::Init(HWND hWnd) {
 
   // Initial camera setup
   if (SUCCEEDED(result)) {
-    m_camera.poi = Point3f{0, 0, 0};
+    m_camera.poi = Vector3{0, 0, 0};
     m_camera.r = 5.0f;
     m_camera.phi = -(float)M_PI / 4;
     m_camera.theta = (float)M_PI / 4;
@@ -127,7 +126,7 @@ HRESULT Renderer::InitScene() {
 
   if (SUCCEEDED(result)) {
     m_pWater = new Water(m_pDXController);
-    result = m_pWater->Init(50);
+    result = m_pWater->Init(500);
   }
 
   assert(SUCCEEDED(result));
@@ -151,9 +150,9 @@ bool Renderer::Update() {
 
   // Move camera
   {
-    Point3f cf, cr;
+    Vector3 cf, cr;
     m_camera.GetDirections(cf, cr);
-    Point3f d = (cf * (float)m_forwardDelta + cr * (float)m_rightDelta) *
+    Vector3 d = (cf * (float)m_forwardDelta + cr * (float)m_rightDelta) *
                 (float)deltaSec;
     m_camera.poi = m_camera.poi + d;
   }
@@ -162,15 +161,15 @@ bool Renderer::Update() {
 
   // Setup camera
   DirectX::XMMATRIX v;
-  Point4f cameraPos;
+  Vector4 cameraPos;
   {
-    Point3f pos =
-        m_camera.poi + Point3f{cosf(m_camera.theta) * cosf(m_camera.phi),
+    Vector3 pos =
+        m_camera.poi + Vector3{cosf(m_camera.theta) * cosf(m_camera.phi),
                                sinf(m_camera.theta),
                                cosf(m_camera.theta) * sinf(m_camera.phi)} *
                            m_camera.r;
     float upTheta = m_camera.theta + (float)M_PI / 2;
-    Point3f up = Point3f{cosf(upTheta) * cosf(m_camera.phi), sinf(upTheta),
+    Vector3 up = Vector3{cosf(upTheta) * cosf(m_camera.phi), sinf(upTheta),
                          cosf(upTheta) * sinf(m_camera.phi)};
 
     v = DirectX::XMMatrixLookAtLH(
@@ -179,7 +178,7 @@ bool Renderer::Update() {
                              0.0f),
         DirectX::XMVectorSet(up.x, up.y, up.z, 0.0f));
 
-    cameraPos = pos;
+    cameraPos = Vector4(pos);
   }
 
   float f = 100.0f;
@@ -241,7 +240,7 @@ bool Renderer::Render() {
   m_pDXController->m_pDeviceContext->RSSetState(
       m_pDXController->m_pRasterizerState);
 
-  //m_pCubeMap->Render(m_pSceneBuffer);
+  // m_pCubeMap->Render(m_pSceneBuffer);
   m_pSurface->Render(m_pSceneBuffer);
   m_pWater->Render(m_pSceneBuffer);
 

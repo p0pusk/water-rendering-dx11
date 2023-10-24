@@ -11,7 +11,6 @@
 
 #include "DXController.h"
 #include "cubeMap.h"
-#include "point.h"
 #include "primitive.h"
 #include "sph.h"
 #include "surface.h"
@@ -53,29 +52,29 @@ class Renderer {
 
  private:
   struct Camera {
-    Point3f poi;  // Point of interest
+    Vector3 poi;  // Point of interest
     float r;      // Distance to POI
     float phi;    // Angle in plane x0z
     float theta;  // Angle from plane x0z
 
-    void GetDirections(Point3f& forward, Point3f& right);
+    void GetDirections(Vector3& forward, Vector3& right);
   };
 
   struct Light {
-    Point4f pos = Point4f{0, 0, 0, 0};
-    Point4f color = Point4f{1, 1, 1, 0};
+    Vector4 pos = Vector4{0, 0, 0, 0};
+    Vector4 color = Vector4{1, 1, 1, 0};
   };
 
   struct SceneBuffer {
     DirectX::XMMATRIX vp;
-    Point4f cameraPos;
-    Point4i lightCount;  // x - light count (max 10)
+    Vector4 cameraPos;
+    Vector4 lightCount;  // x - light count (max 10)
     Light lights[10000];
-    Point4f ambientColor;
+    Vector4 ambientColor;
   };
 
   struct BoundingRect {
-    Point3f v[4];
+    Vector3 v[4];
   };
 
  private:

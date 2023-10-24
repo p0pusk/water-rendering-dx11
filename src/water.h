@@ -26,6 +26,7 @@ class Water : public GeometricPrimitive {
       : GeometricPrimitive(pDXController),
         m_pSph(nullptr),
         m_pGeomBuffer(nullptr),
+        m_sphereIndexCount(0),
         m_numParticles(1000) {}
 
   ~Water() {
@@ -44,6 +45,8 @@ class Water : public GeometricPrimitive {
   SPH* m_pSph;
 
   ID3D11Buffer* m_pGeomBuffer;
+
+  GeomBuffer m_gb;
 
   UINT m_sphereIndexCount;
 };

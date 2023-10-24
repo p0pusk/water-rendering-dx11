@@ -13,7 +13,7 @@ HRESULT Water::Init(int numParticles) {
 
   HRESULT result = S_OK;
 
-  static const size_t SphereSteps = 4;
+  static const size_t SphereSteps = 32;
 
   std::vector<Vector3> sphereVertices;
   std::vector<UINT16> indices;
@@ -31,7 +31,7 @@ HRESULT Water::Init(int numParticles) {
   CreateSphere(SphereSteps, SphereSteps, indices.data(), sphereVertices.data());
 
   for (auto &v : sphereVertices) {
-    v = v * 0.125f;
+    v = v * 0.1f;
   }
 
   // Create vertex buffer
@@ -52,7 +52,7 @@ HRESULT Water::Init(int numParticles) {
     result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pVertexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pVertexBuffer, "SmallSphereVertexBuffer");
+      result = SetResourceName(m_pVertexBuffer, "ParticleVertexBuffer");
     }
   }
 
@@ -104,21 +104,20 @@ HRESULT Water::Init(int numParticles) {
   if (SUCCEEDED(result)) {
     D3D11_BUFFER_DESC desc = {};
     desc.ByteWidth = sizeof(GeomBuffer);
-    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.CPUAccessFlags = 0;
     desc.MiscFlags = 0;
     desc.StructureByteStride = 0;
 
-    GeomBuffer geomBuffer;
-    geomBuffer.color = Vector4{0, 0, 1, 1};
-    for (int i = 0; i < m_numParticles && SUCCEEDED(result); i++) {
-      geomBuffer.m[i] = DirectX::XMMatrixIdentity();
+    m_gb.color = {0, 0.25, 0.75, 1};
+    for (int i = 0; i < m_numParticles; i++) {
+      m_gb.m[i] = DirectX::XMMatrixIdentity();
     }
 
     D3D11_SUBRESOURCE_DATA data;
-    data.pSysMem = &geomBuffer;
-    data.SysMemPitch = sizeof(geomBuffer);
+    data.pSysMem = &m_gb;
+    data.SysMemPitch = sizeof(m_gb);
     data.SysMemSlicePitch = 0;
     result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pGeomBuffer);
 
@@ -132,14 +131,12 @@ HRESULT Water::Init(int numParticles) {
 
 void Water::Update(float dt) {
   m_pSph->Update(dt);
-  GeomBuffer gb;
   for (int i = 0; i < m_numParticles; i++) {
-    gb.color = {0, 0.25, 0.75, 1};
     auto &pos = m_pSph->m_particles[i].position;
-    gb.m[i] = DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+    m_gb.m[i] = DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
   }
-  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pGeomBuffer, 0, nullptr, &gb, 0,
-                                              0);
+  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pGeomBuffer, 0, nullptr, &m_gb,
+                                              0, 0);
 }
 
 void Water::Render(ID3D11Buffer *pSceneBuffer) {
@@ -159,5 +156,5 @@ void Water::Render(ID3D11Buffer *pSceneBuffer) {
   ID3D11Buffer *cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
   pContext->VSSetConstantBuffers(0, 2, cbuffers);
   pContext->PSSetConstantBuffers(0, 2, cbuffers);
-  pContext->DrawInstanced(m_sphereIndexCount, m_numParticles, 0, 0);
+  pContext->DrawIndexedInstanced(m_sphereIndexCount, m_numParticles, 0, 0, 0);
 }
