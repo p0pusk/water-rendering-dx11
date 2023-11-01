@@ -1,8 +1,13 @@
 #include "sph.h"
 
+#include <stdint.h>
+
+#include <algorithm>
 #include <random>
 
 #include "SimpleMath.h"
+#include "neighbour-hash.h"
+#include "particle.h"
 
 void SPH::Init() {
   std::random_device dev;
@@ -29,6 +34,17 @@ void SPH::Init() {
       }
     }
   }
+
+  // create hash table
+  for (auto& p : m_particles) {
+    p.hash = m_hash.getHash(m_hash.getCell(p, h, m_props.pos));
+  }
+
+  std::sort(
+      m_particles.begin(), m_particles.end(),
+      [&](const Particle& a, const Particle& b) { return a.hash < b.hash; });
+
+  m_hash.createTable(m_particles);
 }
 
 void SPH::Update(float dt) {
@@ -36,15 +52,17 @@ void SPH::Update(float dt) {
   float& h = m_props.h;
 
   // Compute density
-  for (auto& p : m_particles) {
-    p.density = 0;
-    for (auto& n : m_particles) {
-      float d2 = Vector3::DistanceSquared(p.position, n.position);
-      if (d2 < h2) {
-        p.density += n.mass * poly6 * pow(h2 - d2, 3);
-      }
-    }
-  }
+  // for (auto& p : m_particles) {
+  //   p.density = 0;
+  //   for (auto& n : m_particles) {
+  //     float d2 = Vector3::DistanceSquared(p.position, n.position);
+  //     if (d2 < h2) {
+  //       p.density += n.mass * poly6 * pow(h2 - d2, 3);
+  //     }
+  //   }
+  // }
+  //
+  UpdateDensity();
 
   // Compute pressure
   for (auto& p : m_particles) {
@@ -88,6 +106,38 @@ void SPH::Update(float dt) {
 
     // boundary condition
     CheckBoundary(p);
+  }
+}
+
+void SPH::UpdateDensity() {
+  for (auto& p : m_particles) {
+    p.density = m_props.mass * poly6 * std::pow(h2, 3);
+
+    XMINT3 cell = m_hash.getCell(p, m_props.h, m_props.pos);
+
+    for (int x = -1; x <= 1; x++) {
+      for (int y = -1; y <= 1; y++) {
+        for (int z = -1; z <= 1; z++) {
+          uint32_t cellHash =
+              m_hash.getHash({cell.x + x, cell.y + y, cell.z + z});
+          uint32_t ni = m_hash.m[cellHash];
+          if (ni == NO_PARTICLE) {
+            continue;
+          }
+
+          Particle* n = &m_particles[ni];
+          while (n->hash == cellHash) {
+            float d2 = Vector3::DistanceSquared(p.position, n->position);
+            if (d2 < h2) {
+              p.density += n->mass * poly6 * std::pow(h2 - d2, 3);
+            }
+
+            if (ni == m_particles.size() - 1) break;
+            n = &m_particles[++ni];
+          }
+        }
+      }
+    }
   }
 }
 

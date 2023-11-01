@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 
+#include "marching-cubes.h"
 #include "primitive.h"
 #include "sph.h"
 
@@ -48,6 +49,7 @@ class Water : public GeometricPrimitive {
   int m_numParticles;
 
   SPH* m_pSph;
+  MarchingCube* m_pMarchingCube;
 
   ID3D11Buffer* m_pInstanceBuffer;
   InstanceData* m_instanceData;

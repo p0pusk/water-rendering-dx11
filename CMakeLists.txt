@@ -12,6 +12,8 @@ set(SRC
 "src/renderer.cpp"
 "src/surface.cpp"
 ./src/DDS.cpp
+./src/simulation/neighbour-hash.cpp
+./src/simulation/marching-cubes.cpp
 "src/simulation/water.cpp"
  "src/simulation/sph.cpp"
  "src/dx-controller.cpp"
@@ -30,6 +32,7 @@ add_executable(
  add_executable(
      sph
 	 "src/sph-test.cpp"
+./src/simulation/neighbour-hash.cpp
 	 "src/simulation/sph.cpp"
  )
 

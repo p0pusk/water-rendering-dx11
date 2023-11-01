@@ -1,5 +1,9 @@
 #pragma once
 
+#include <stdint.h>
+
+#include "neighbour-hash.h"
+
 #define _USE_MATH_DEFINES
 
 #include <SimpleMath.h>
@@ -10,17 +14,6 @@
 
 using namespace DirectX::SimpleMath;
 using namespace DirectX;
-
-struct Particle {
-  Vector3 position;
-  float density;
-  float mass;
-  float pressure;
-  Vector3 pressureGrad;
-  Vector3 viscosity;
-  Vector3 force;
-  Vector3 velocity;
-};
 
 class SPH {
  public:
@@ -48,13 +41,17 @@ class SPH {
   void Update(float dt);
   void Init();
 
- private:
   Props m_props;
+
+ private:
   float poly6;
   float spikyGrad;
   float spikyLap;
 
+  NeighbourHash m_hash;
+
   float h2;
 
+  void UpdateDensity();
   void CheckBoundary(Particle& p);
 };

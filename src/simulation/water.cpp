@@ -1,11 +1,23 @@
 #include "water.h"
 
+#include "SimpleMath.h"
+#include "marching-cubes.h"
+
 HRESULT Water::Init() { return Init(5); }
 
 HRESULT Water::Init(UINT boxWidth) {
   SPH::Props props;
+  props.cubeNum = XMINT3(boxWidth, boxWidth, boxWidth);
   m_pSph = new SPH(props);
   m_pSph->Init();
+
+  Vector3 bound = Vector3(m_pSph->m_props.cubeNum.x, m_pSph->m_props.cubeNum.y,
+                          m_pSph->m_props.cubeNum.z) *
+                  m_pSph->m_props.cubeLen;
+
+  m_pMarchingCube =
+      new MarchingCube(bound, m_pSph->m_props.cubeLen, &m_pSph->m_particles,
+                       m_pSph->m_props.particleRadius);
 
   m_numParticles = m_pSph->m_particles.size();
   m_instanceData =
@@ -52,7 +64,7 @@ HRESULT Water::Init(UINT boxWidth) {
   if (SUCCEEDED(result)) {
     D3D11_BUFFER_DESC desc = {};
     desc.ByteWidth = (UINT)(sphereVertices.size() * sizeof(Vector3));
-    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = 0;
@@ -74,7 +86,7 @@ HRESULT Water::Init(UINT boxWidth) {
   if (SUCCEEDED(result)) {
     D3D11_BUFFER_DESC desc = {};
     desc.ByteWidth = (UINT)(indices.size() * sizeof(UINT16));
-    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.Usage = D3D11_USAGE_DEFAULT;
     desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = 0;
@@ -149,6 +161,14 @@ void Water::Update(float dt) {
 
   m_pDXC->m_pDeviceContext->UpdateSubresource(m_pInstanceBuffer, 0, nullptr,
                                               m_instanceData, 0, 0);
+
+  std::vector<Vector3> vertecies;
+  std::vector<UINT> indices;
+  // m_pMarchingCube->count(vertecies, indices);
+  // m_pDXC->m_pDeviceContext->UpdateSubresource(m_pVertexBuffer, 0, nullptr,
+  //                                             vertecies.data(), 0, 0);
+  // m_pDXC->m_pDeviceContext->UpdateSubresource(m_pIndexBuffer, 0, nullptr,
+  //                                             indices.data(), 0, 0);
 }
 
 void Water::Render(ID3D11Buffer *pSceneBuffer) {

@@ -146,7 +146,7 @@ bool Renderer::Update() {
 
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
 
-  m_pWater->Update(deltaSec);
+  m_pWater->Update(deltaSec / 40);
 
   // Move camera
   {
