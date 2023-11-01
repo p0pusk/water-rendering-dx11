@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "DXController.h"
-#include "cubeMap.h"
+#include "cubemap.h"
+#include "dx-controller.h"
 #include "primitive.h"
 #include "sph.h"
 #include "surface.h"
@@ -24,10 +24,11 @@ class Renderer {
       : m_pDXController(nullptr),
         m_pSceneBuffer(nullptr),
         m_prevUSec(0),
+        m_prevSimUSec(0),
         m_rbPressed(false),
         m_prevMouseX(0),
         m_prevMouseY(0),
-        m_rotateModel(true),
+        m_rotateModel(false),
         m_angle(0.0),
         m_forwardDelta(0.0),
         m_rightDelta(0.0),
@@ -108,4 +109,5 @@ class Renderer {
   bool m_showNormals;
 
   size_t m_prevUSec;
+  size_t m_prevSimUSec;
 };

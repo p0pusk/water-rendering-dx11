@@ -1,4 +1,4 @@
-#include "DXController.h"
+#include "dx-controller.h"
 
 HRESULT DXController::Init(const HWND& hWnd) {
   HRESULT result;

@@ -8,7 +8,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include "DXController.h"
+#include "dx-controller.h"
 
 using namespace DirectX::SimpleMath;
 

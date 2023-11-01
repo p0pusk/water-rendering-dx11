@@ -1,15 +1,29 @@
 #include "water.h"
 
-HRESULT Water::Init() { return Init(m_numParticles); }
+HRESULT Water::Init() { return Init(5); }
 
-HRESULT Water::Init(int numParticles) {
-  m_numParticles = numParticles;
-  m_pSph = new SPH(m_numParticles);
+HRESULT Water::Init(UINT boxWidth) {
+  SPH::Props props;
+  m_pSph = new SPH(props);
   m_pSph->Init();
+
+  m_numParticles = m_pSph->m_particles.size();
+  m_instanceData =
+      (InstanceData *)malloc(sizeof(InstanceData) * m_numParticles);
+  for (int i = 0; i < m_numParticles; i++) {
+    m_instanceData[i].pos = m_pSph->m_particles[i].position;
+    m_instanceData[i].density = m_pSph->m_particles[i].density;
+  }
 
   static const D3D11_INPUT_ELEMENT_DESC InputDesc[] = {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
-       D3D11_INPUT_PER_VERTEX_DATA, 0}};
+       D3D11_INPUT_PER_VERTEX_DATA, 0},
+
+      {"INSTANCEPOS", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0,
+       D3D11_INPUT_PER_INSTANCE_DATA, 1},
+      {"INSTANCEDENSITY", 0, DXGI_FORMAT_R32_FLOAT, 1, 12,
+       D3D11_INPUT_PER_INSTANCE_DATA, 1},
+  };
 
   HRESULT result = S_OK;
 
@@ -78,6 +92,28 @@ HRESULT Water::Init(int numParticles) {
     }
   }
 
+  // Create Instance buffer
+  if (SUCCEEDED(result)) {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = (UINT)(sizeof(InstanceData) * m_numParticles);
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+
+    D3D11_SUBRESOURCE_DATA data;
+    data.pSysMem = m_instanceData;
+    data.SysMemPitch = (UINT)(sizeof(InstanceData) * m_numParticles);
+    data.SysMemSlicePitch = 0;
+
+    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pInstanceBuffer);
+    assert(SUCCEEDED(result));
+    if (SUCCEEDED(result)) {
+      result = SetResourceName(m_pInstanceBuffer, "ParticleInstanceBuffer");
+    }
+  }
+
   ID3DBlob *pSmallSphereVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
     result = CompileAndCreateShader(L"../shaders/Particle.vs",
@@ -91,7 +127,8 @@ HRESULT Water::Init(int numParticles) {
 
   if (SUCCEEDED(result)) {
     result = m_pDXC->m_pDevice->CreateInputLayout(
-        InputDesc, 1, pSmallSphereVertexShaderCode->GetBufferPointer(),
+        InputDesc, ARRAYSIZE(InputDesc),
+        pSmallSphereVertexShaderCode->GetBufferPointer(),
         pSmallSphereVertexShaderCode->GetBufferSize(), &m_pInputLayout);
     if (SUCCEEDED(result)) {
       result = SetResourceName(m_pInputLayout, "ParticleInputLayout");
@@ -100,43 +137,18 @@ HRESULT Water::Init(int numParticles) {
 
   SAFE_RELEASE(pSmallSphereVertexShaderCode);
 
-  // Create geometry buffer
-  if (SUCCEEDED(result)) {
-    D3D11_BUFFER_DESC desc = {};
-    desc.ByteWidth = sizeof(GeomBuffer);
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    desc.CPUAccessFlags = 0;
-    desc.MiscFlags = 0;
-    desc.StructureByteStride = 0;
-
-    m_gb.color = {0, 0.25, 0.75, 1};
-    for (int i = 0; i < m_numParticles; i++) {
-      m_gb.m[i] = DirectX::XMMatrixIdentity();
-    }
-
-    D3D11_SUBRESOURCE_DATA data;
-    data.pSysMem = &m_gb;
-    data.SysMemPitch = sizeof(m_gb);
-    data.SysMemSlicePitch = 0;
-    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pGeomBuffer);
-
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pGeomBuffer, "ParticlesGeomBuffer");
-    }
-  }
-
   return result;
 }
 
 void Water::Update(float dt) {
   m_pSph->Update(dt);
   for (int i = 0; i < m_numParticles; i++) {
-    auto &pos = m_pSph->m_particles[i].position;
-    m_gb.m[i] = DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
+    m_instanceData[i].pos = m_pSph->m_particles[i].position;
+    m_instanceData[i].density = m_pSph->m_particles[i].density;
   }
-  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pGeomBuffer, 0, nullptr, &m_gb,
-                                              0, 0);
+
+  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pInstanceBuffer, 0, nullptr,
+                                              m_instanceData, 0, 0);
 }
 
 void Water::Render(ID3D11Buffer *pSceneBuffer) {
@@ -145,16 +157,16 @@ void Water::Render(ID3D11Buffer *pSceneBuffer) {
   pContext->OMSetBlendState(m_pDXC->m_pOpaqueBlendState, nullptr, 0xffffffff);
 
   pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};
-  UINT strides[] = {sizeof(Vector3)};
-  UINT offsets[] = {0};
-  pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
+  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer, m_pInstanceBuffer};
+  UINT strides[] = {sizeof(Vector3), sizeof(InstanceData)};
+  UINT offsets[] = {0, 0};
+  pContext->IASetVertexBuffers(0, 2, vertexBuffers, strides, offsets);
   pContext->IASetInputLayout(m_pInputLayout);
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   pContext->VSSetShader(m_pVertexShader, nullptr, 0);
   pContext->PSSetShader(m_pPixelShader, nullptr, 0);
-  ID3D11Buffer *cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
-  pContext->VSSetConstantBuffers(0, 2, cbuffers);
-  pContext->PSSetConstantBuffers(0, 2, cbuffers);
+  ID3D11Buffer *cbuffers[] = {pSceneBuffer};
+  pContext->VSSetConstantBuffers(0, 1, cbuffers);
+  pContext->PSSetConstantBuffers(0, 1, cbuffers);
   pContext->DrawIndexedInstanced(m_sphereIndexCount, m_numParticles, 0, 0, 0);
 }

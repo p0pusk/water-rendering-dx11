@@ -1,9 +1,11 @@
-#include <iostream>
-
 #include "sph.h"
 
+#include <iostream>
+
 int main() {
-  SPH sph(1000);
+  SPH::Props props;
+  props.cubeNum = {10, 10, 10};
+  SPH sph(props);
   sph.Init();
 
   auto& p = sph.m_particles[100];

@@ -126,7 +126,7 @@ HRESULT Renderer::InitScene() {
 
   if (SUCCEEDED(result)) {
     m_pWater = new Water(m_pDXController);
-    result = m_pWater->Init(500);
+    result = m_pWater->Init(10);
   }
 
   assert(SUCCEEDED(result));

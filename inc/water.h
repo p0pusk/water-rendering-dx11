@@ -16,6 +16,11 @@ class Water : public GeometricPrimitive {
     Vector3 pos;
   };
 
+  struct InstanceData {
+    Vector3 pos;
+    float density;
+  };
+
   struct GeomBuffer {
     DirectX::XMMATRIX m[1000];
     Vector4 color;
@@ -25,17 +30,17 @@ class Water : public GeometricPrimitive {
   Water(std::shared_ptr<DXController>& pDXController)
       : GeometricPrimitive(pDXController),
         m_pSph(nullptr),
-        m_pGeomBuffer(nullptr),
         m_sphereIndexCount(0),
         m_numParticles(1000) {}
 
   ~Water() {
     delete m_pSph;
-    SAFE_RELEASE(m_pGeomBuffer);
+    delete[] m_instanceData;
+    SAFE_RELEASE(m_pInstanceBuffer);
   }
 
   HRESULT Init() override;
-  HRESULT Init(int numParticles);
+  HRESULT Init(UINT boxWidth);
   void Update(float dt);
   void Render(ID3D11Buffer* pSceneBuffer = nullptr) override;
 
@@ -44,9 +49,8 @@ class Water : public GeometricPrimitive {
 
   SPH* m_pSph;
 
-  ID3D11Buffer* m_pGeomBuffer;
-
-  GeomBuffer m_gb;
+  ID3D11Buffer* m_pInstanceBuffer;
+  InstanceData* m_instanceData;
 
   UINT m_sphereIndexCount;
 };

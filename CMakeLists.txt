@@ -1,39 +1,45 @@
 cmake_minimum_required(VERSION 3.26)
 project(wat24)
 
+# set(CMAKE_CXX_STANDART 20)
+set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+add_subdirectory(${CMAKE_SOURCE_DIR}/Library/DirectXTK ${CMAKE_BINARY_DIR}/bin/CMake/DirectXTK)
+
 
 set(SRC
-./src/main.cpp
+"src/main.cpp"
 "src/renderer.cpp"
 "src/surface.cpp"
 ./src/DDS.cpp
- "src/water.h" "src/water.cpp"
- "src/sph.cpp"
- "src/sph.h"
- 
- "src/DXController.cpp"
- "src/primitive.h"  "src/cubeMap.cpp" "src/primitive.cpp")
+"src/simulation/water.cpp"
+ "src/simulation/sph.cpp"
+ "src/dx-controller.cpp"
+ "src/cubemap.cpp"
+ "src/primitive.cpp"
+)
 
-add_subdirectory(${CMAKE_SOURCE_DIR}/Library/DirectXTK ${CMAKE_BINARY_DIR}/bin/CMake/DirectXTK)
 
 add_executable(
   test
   WIN32
   ${SRC}
- "src/sphTest.cpp"
+ "src/sph-test.cpp"
 )
 
  add_executable(
      sph
-	 "src/sphTest.cpp"
-	 "src/sph.cpp"
-	 "src/sph.h"
+	 "src/sph-test.cpp"
+	 "src/simulation/sph.cpp"
  )
 
  target_link_libraries(
      sph
      DirectXTK
  )
+
+target_include_directories(test PRIVATE "./inc")
+target_include_directories(sph PRIVATE "./inc")
 
 target_link_libraries(test PRIVATE
     d3d11.lib dxgi.lib dxguid.lib uuid.lib
