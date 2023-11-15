@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 
+#include "heightfield.h"
 #include "marching-cubes.h"
 #include "primitive.h"
 #include "sph.h"
@@ -30,29 +31,36 @@ class Water : public GeometricPrimitive {
  public:
   Water(std::shared_ptr<DXController>& pDXController)
       : GeometricPrimitive(pDXController),
-        m_pSph(nullptr),
-        m_sphereIndexCount(0),
+        // m_pSph(nullptr),
+        // m_sphereIndexCount(0),
         m_numParticles(1000) {}
 
   ~Water() {
-    delete m_pSph;
-    delete[] m_instanceData;
-    SAFE_RELEASE(m_pInstanceBuffer);
+    // delete m_pSph;
+    // delete[] m_instanceData;
+    delete m_heightfield;
+    // SAFE_RELEASE(m_pInstanceBuffer);
   }
 
   HRESULT Init() override;
   HRESULT Init(UINT boxWidth);
   void Update(float dt);
   void Render(ID3D11Buffer* pSceneBuffer = nullptr) override;
+  void StartImpulse(int x, int y, float value, float radius);
+  void StopImpulse(int x, int y, float radius);
 
  private:
   int m_numParticles;
 
-  SPH* m_pSph;
-  MarchingCube* m_pMarchingCube;
+  // SPH* m_pSph;
+  HeightField* m_heightfield;
+  std::vector<Vector3> m_vertecies;
+  std::vector<UINT16> m_indecies;
 
-  ID3D11Buffer* m_pInstanceBuffer;
-  InstanceData* m_instanceData;
+  // MarchingCube* m_pMarchingCube;
 
-  UINT m_sphereIndexCount;
+  // ID3D11Buffer* m_pInstanceBuffer;
+  // InstanceData* m_instanceData;
+
+  // UINT m_sphereIndexCount;
 };

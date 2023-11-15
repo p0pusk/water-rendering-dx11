@@ -127,8 +127,8 @@ void Surface::Render(ID3D11Buffer *pSceneBuffer) {
 
   m_pDXC->m_pDeviceContext->OMSetDepthStencilState(m_pDXC->m_pDepthState, 0);
 
-  m_pDXC->m_pDeviceContext->OMSetBlendState(m_pDXC->m_pTransBlendState, nullptr,
-                                            0xFFFFFFFF);
+  m_pDXC->m_pDeviceContext->OMSetBlendState(m_pDXC->m_pOpaqueBlendState,
+                                            nullptr, 0xFFFFFFFF);
 
   m_pDXC->m_pDeviceContext->IASetIndexBuffer(m_pIndexBuffer,
                                              DXGI_FORMAT_R16_UINT, 0);

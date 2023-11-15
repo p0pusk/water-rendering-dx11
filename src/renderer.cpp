@@ -126,7 +126,7 @@ HRESULT Renderer::InitScene() {
 
   if (SUCCEEDED(result)) {
     m_pWater = new Water(m_pDXController);
-    result = m_pWater->Init(10);
+    result = m_pWater->Init(100);
   }
 
   assert(SUCCEEDED(result));
@@ -146,7 +146,7 @@ bool Renderer::Update() {
 
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
 
-  m_pWater->Update(deltaSec / 40);
+  m_pWater->Update(deltaSec);
 
   // Move camera
   {
@@ -319,6 +319,10 @@ void Renderer::KeyPressed(int keyCode) {
     case 'a':
       m_rightDelta -= PanSpeed;
       break;
+    case 'I':
+    case 'i':
+      m_pWater->StartImpulse(50, 50, 2, 2);
+      break;
   }
 }
 
@@ -342,6 +346,11 @@ void Renderer::KeyReleased(int keyCode) {
     case 'A':
     case 'a':
       m_rightDelta += PanSpeed;
+      break;
+
+    case 'I':
+    case 'i':
+      // m_pWater->StopImpulse(50, 50, 1);
       break;
   }
 }

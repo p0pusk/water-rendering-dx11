@@ -37,14 +37,14 @@ void SPH::Init() {
 
   // create hash table
   for (auto& p : m_particles) {
-    p.hash = m_hash.getHash(m_hash.getCell(p, h, m_props.pos));
+    p.hash = m_hashM.getHash(m_hashM.getCell(p, h, m_props.pos));
   }
 
   std::sort(
       m_particles.begin(), m_particles.end(),
       [&](const Particle& a, const Particle& b) { return a.hash < b.hash; });
 
-  m_hash.createTable(m_particles);
+  m_hashM.createTable(m_particles);
 }
 
 void SPH::Update(float dt) {
@@ -62,6 +62,7 @@ void SPH::Update(float dt) {
   //   }
   // }
   //
+
   UpdateDensity();
 
   // Compute pressure
@@ -72,32 +73,24 @@ void SPH::Update(float dt) {
   }
 
   // Compute pressure force
-  for (auto& p : m_particles) {
-    p.pressureGrad = Vector3::Zero;
-    p.force = Vector3(0, -9.8f * p.density, 0);
-    for (auto& n : m_particles) {
-      float d = Vector3::Distance(p.position, n.position);
-      Vector3 dir = (p.position - n.position);
-      dir.Normalize();
-      if (d < h) {
-        p.pressureGrad += dir * n.mass * (p.pressure + n.pressure) /
-                          (2 * n.density) * spikyGrad * std::pow(h - d, 2);
-      }
-    }
-  }
-
-  // Compute viscosity
-  for (auto& p : m_particles) {
-    p.viscosity = Vector3::Zero;
-    for (auto& n : m_particles) {
-      float d = Vector3::Distance(p.position, n.position);
-      if (d < h) {
-        p.viscosity += m_props.dynamicViscosity * n.mass *
-                       (n.velocity - p.velocity) / n.density * spikyLap *
-                       (h - d);
-      }
-    }
-  }
+  //for (auto& p : m_particles) {
+  //  p.pressureGrad = Vector3::Zero;
+  //  p.force = Vector3(0, -9.8f * p.density, 0);
+  //  p.viscosity = Vector3::Zero;
+  //  for (auto& n : m_particles) {
+  //    float d = Vector3::Distance(p.position, n.position);
+  //    Vector3 dir = (p.position - n.position);
+  //    dir.Normalize();
+  //    if (d < h) {
+  //      p.pressureGrad += dir * n.mass * (p.pressure + n.pressure) /
+  //                        (2 * n.density) * spikyGrad * std::pow(h - d, 2);
+  //      p.viscosity += m_props.dynamicViscosity * n.mass *
+  //                     (n.velocity - p.velocity) / n.density * spikyLap *
+  //                     (m_props.h - d);
+  //    }
+  //  }
+  //}
+  UpdateForces();
 
   // TimeStep
   for (auto& p : m_particles) {
@@ -111,16 +104,16 @@ void SPH::Update(float dt) {
 
 void SPH::UpdateDensity() {
   for (auto& p : m_particles) {
-    p.density = m_props.mass * poly6 * std::pow(h2, 3);
+    p.density = 0;
 
-    XMINT3 cell = m_hash.getCell(p, m_props.h, m_props.pos);
+    XMINT3 cell = m_hashM.getCell(p, m_props.h, m_props.pos);
 
     for (int x = -1; x <= 1; x++) {
       for (int y = -1; y <= 1; y++) {
         for (int z = -1; z <= 1; z++) {
           uint32_t cellHash =
-              m_hash.getHash({cell.x + x, cell.y + y, cell.z + z});
-          uint32_t ni = m_hash.m[cellHash];
+              m_hashM.getHash({cell.x + x, cell.y + y, cell.z + z});
+          uint32_t ni = m_hashM.m[cellHash];
           if (ni == NO_PARTICLE) {
             continue;
           }
@@ -130,6 +123,50 @@ void SPH::UpdateDensity() {
             float d2 = Vector3::DistanceSquared(p.position, n->position);
             if (d2 < h2) {
               p.density += n->mass * poly6 * std::pow(h2 - d2, 3);
+            }
+
+            if (ni == m_particles.size() - 1) break;
+            n = &m_particles[++ni];
+          }
+        }
+      }
+    }
+  }
+}
+
+void SPH::UpdateForces() {
+  for (auto& p : m_particles) {
+    p.pressureGrad = Vector3::Zero;
+    p.viscosity = Vector3::Zero;
+    p.force = Vector3(0, -9.8 * p.density, 0);
+
+    XMINT3 cell = m_hashM.getCell(p, m_props.h, m_props.pos);
+
+    for (int x = -1; x <= 1; x++) {
+      for (int y = -1; y <= 1; y++) {
+        for (int z = -1; z <= 1; z++) {
+          uint32_t cellHash =
+              m_hashM.getHash({cell.x + x, cell.y + y, cell.z + z});
+
+          uint32_t ni = m_hashM.m[cellHash];
+          if (ni == NO_PARTICLE) {
+            continue;
+          }
+
+          Particle* n = &m_particles[ni];
+          while (n->hash == cellHash) {
+            float d = Vector3::Distance(p.position, n->position);
+            Vector3 dir = (p.position - n->position);
+            dir.Normalize();
+
+            if (d < m_props.h) {
+              p.pressureGrad += dir * n->mass * (p.pressure + n->pressure) /
+                                (2 * n->density) * spikyGrad *
+                                std::pow(m_props.h - d, 2);
+
+              p.viscosity += m_props.dynamicViscosity * n->mass *
+                             (n->velocity - p.velocity) / n->density *
+                             spikyLap * (m_props.h - d);
             }
 
             if (ni == m_particles.size() - 1) break;

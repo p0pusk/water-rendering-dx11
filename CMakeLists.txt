@@ -23,28 +23,27 @@ set(SRC
 
 
 add_executable(
-  test
+  water
   WIN32
   ${SRC}
- "src/sph-test.cpp"
-)
+ "src/heightfield-test.cpp"
+ "src/simulation/heightfield.cpp")
 
  add_executable(
-     sph
-	 "src/sph-test.cpp"
-./src/simulation/neighbour-hash.cpp
-	 "src/simulation/sph.cpp"
+  test
+	 "src/heightfield-test.cpp"
+	 "src/simulation/heightfield.cpp"
  )
 
  target_link_libraries(
-     sph
+     test
      DirectXTK
  )
 
+target_include_directories(water PRIVATE "./inc")
 target_include_directories(test PRIVATE "./inc")
-target_include_directories(sph PRIVATE "./inc")
 
-target_link_libraries(test PRIVATE
+target_link_libraries(water PRIVATE
     d3d11.lib dxgi.lib dxguid.lib uuid.lib
     d3dcompiler.lib
     kernel32.lib user32.lib

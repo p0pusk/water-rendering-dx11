@@ -48,10 +48,11 @@ class SPH {
   float spikyGrad;
   float spikyLap;
 
-  NeighbourHash m_hash;
+  NeighbourHash m_hashM;
 
   float h2;
 
   void UpdateDensity();
+  void UpdateForces();
   void CheckBoundary(Particle& p);
 };
