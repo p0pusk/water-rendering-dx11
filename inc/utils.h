@@ -1,10 +1,13 @@
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
+#define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
 // Windows Header Files
 #include <windows.h>
 // C RunTime Header Files
 #include <assert.h>
+#include <d3d11.h>
+#include <d3dcommon.h>
+#include <dxgi.h>
 #include <malloc.h>
 #include <memory.h>
 #include <stdlib.h>
@@ -13,25 +16,21 @@
 #include <string>
 #include <vector>
 
-#include <d3d11.h>
-#include <d3dcommon.h>
-#include <dxgi.h>
-
-#define ASSERT_RETURN(expr, returnValue)                                       \
-  {                                                                            \
-    bool value = (expr);                                                       \
-    assert(value);                                                             \
-    if (!value) {                                                              \
-      return returnValue;                                                      \
-    }                                                                          \
+#define ASSERT_RETURN(expr, returnValue) \
+  {                                      \
+    bool value = (expr);                 \
+    assert(value);                       \
+    if (!value) {                        \
+      return returnValue;                \
+    }                                    \
   }
 
-#define SAFE_RELEASE(p)                                                        \
-  {                                                                            \
-    if (p != nullptr) {                                                        \
-      p->Release();                                                            \
-      p = nullptr;                                                             \
-    }                                                                          \
+#define SAFE_RELEASE(p) \
+  {                     \
+    if (p != nullptr) { \
+      p->Release();     \
+      p = nullptr;      \
+    }                   \
   }
 
 inline HRESULT SetResourceName(ID3D11DeviceChild *pResource,
@@ -61,39 +60,67 @@ inline std::string WCSToMBS(const std::wstring &wstr) {
   return res.data();
 }
 
-template <typename T> T DivUp(const T &a, const T &b) {
+template <typename T>
+T DivUp(const T &a, const T &b) {
   return (a + b - (T)1) / b;
 }
 
 inline UINT32 GetBytesPerBlock(const DXGI_FORMAT &fmt) {
   switch (fmt) {
-  case DXGI_FORMAT_BC1_TYPELESS:
-  case DXGI_FORMAT_BC1_UNORM:
-  case DXGI_FORMAT_BC1_UNORM_SRGB:
-  case DXGI_FORMAT_BC4_TYPELESS:
-  case DXGI_FORMAT_BC4_UNORM:
-  case DXGI_FORMAT_BC4_SNORM:
-    return 8;
-    break;
+    case DXGI_FORMAT_BC1_TYPELESS:
+    case DXGI_FORMAT_BC1_UNORM:
+    case DXGI_FORMAT_BC1_UNORM_SRGB:
+    case DXGI_FORMAT_BC4_TYPELESS:
+    case DXGI_FORMAT_BC4_UNORM:
+    case DXGI_FORMAT_BC4_SNORM:
+      return 8;
+      break;
 
-  case DXGI_FORMAT_BC2_TYPELESS:
-  case DXGI_FORMAT_BC2_UNORM:
-  case DXGI_FORMAT_BC2_UNORM_SRGB:
-  case DXGI_FORMAT_BC3_TYPELESS:
-  case DXGI_FORMAT_BC3_UNORM:
-  case DXGI_FORMAT_BC3_UNORM_SRGB:
-  case DXGI_FORMAT_BC5_TYPELESS:
-  case DXGI_FORMAT_BC5_UNORM:
-  case DXGI_FORMAT_BC5_SNORM:
-  case DXGI_FORMAT_BC6H_TYPELESS:
-  case DXGI_FORMAT_BC6H_UF16:
-  case DXGI_FORMAT_BC6H_SF16:
-  case DXGI_FORMAT_BC7_TYPELESS:
-  case DXGI_FORMAT_BC7_UNORM:
-  case DXGI_FORMAT_BC7_UNORM_SRGB:
-    return 16;
-    break;
+    case DXGI_FORMAT_BC2_TYPELESS:
+    case DXGI_FORMAT_BC2_UNORM:
+    case DXGI_FORMAT_BC2_UNORM_SRGB:
+    case DXGI_FORMAT_BC3_TYPELESS:
+    case DXGI_FORMAT_BC3_UNORM:
+    case DXGI_FORMAT_BC3_UNORM_SRGB:
+    case DXGI_FORMAT_BC5_TYPELESS:
+    case DXGI_FORMAT_BC5_UNORM:
+    case DXGI_FORMAT_BC5_SNORM:
+    case DXGI_FORMAT_BC6H_TYPELESS:
+    case DXGI_FORMAT_BC6H_UF16:
+    case DXGI_FORMAT_BC6H_SF16:
+    case DXGI_FORMAT_BC7_TYPELESS:
+    case DXGI_FORMAT_BC7_UNORM:
+    case DXGI_FORMAT_BC7_UNORM_SRGB:
+      return 16;
+      break;
   }
   assert(0);
   return 0;
 }
+
+#include <exception>
+
+namespace DX {
+// Helper class for COM exceptions
+class com_exception : public std::exception {
+ public:
+  com_exception(HRESULT hr) : result(hr) {}
+
+  const char *what() const noexcept override {
+    static char s_str[64] = {};
+    sprintf_s(s_str, "Failure with HRESULT of %08X",
+              static_cast<unsigned int>(result));
+    return s_str;
+  }
+
+ private:
+  HRESULT result;
+};
+
+// Helper utility converts D3D API failures into exceptions.
+inline void ThrowIfFailed(HRESULT hr) {
+  if (FAILED(hr)) {
+    throw com_exception(hr);
+  }
+}
+}  // namespace DX

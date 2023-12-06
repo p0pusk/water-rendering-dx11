@@ -6,9 +6,6 @@ cbuffer SceneBuffer : register(b0)
 struct VSInput
 {
     float3 pos : POSITION;
-    // uint instanceID : SV_InstanceID;
-    // float3 worldPos : INSTANCEPOS;
-    // float density : INSTANCEDENSITY;
 };
 
 struct VSOutput
@@ -23,8 +20,9 @@ VSOutput vs(VSInput vertex)
     VSOutput result;
 
     result.pos = mul(vp, float4(vertex.pos, 1));
-    // result.worldPos = vertex.worldPos;
-    // float c = clamp(0.25, 1, log10(vertex.density - 7));
+    result.worldPos = vertex.pos;
+    float c = abs(0.05 - vertex.pos.y) * 100;
+    // result.color = lerp(float4(0, 0.25, 0.75, 0.5), float4(1, 0, 0, 1), c);
     result.color = float4(0.25, 0.5, 0.75, 0.5);
 
     return result;

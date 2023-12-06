@@ -35,6 +35,9 @@ HRESULT GeometricPrimitive::CompileAndCreateShader(
   } else if (ext == L"ps") {
     entryPoint = "ps";
     platform = "ps_5_0";
+  } else if (ext == L"cs") {
+    entryPoint = "cs";
+    platform = "cs_5_0";
   }
 
   // Setup flags
@@ -84,6 +87,14 @@ HRESULT GeometricPrimitive::CompileAndCreateShader(
                                                     nullptr, &pPixelShader);
       if (SUCCEEDED(result)) {
         *ppShader = pPixelShader;
+      }
+    } else if (ext == L"cs") {
+      ID3D11ComputeShader* pComputeShader = nullptr;
+      result = m_pDXC->m_pDevice->CreateComputeShader(pCode->GetBufferPointer(),
+                                                      pCode->GetBufferSize(),
+                                                      nullptr, &pComputeShader);
+      if (SUCCEEDED(result)) {
+        *ppShader = pComputeShader;
       }
     }
   }

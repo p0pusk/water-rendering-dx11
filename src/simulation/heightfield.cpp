@@ -24,7 +24,7 @@ void HeightField::Update(float dt) {
   float c = min(m_props.waveSpeed, 0.5 * m_props.w / dt);
   float k = pow(c, 2) / pow(m_props.w, 2);
   float velDamping = 0.9f;
-  float posDamping = 0.5f;
+  float posDamping = 0.1f;
 
   int numX = m_props.gridSize.x;
   int numY = m_props.gridSize.y;
@@ -70,8 +70,8 @@ void HeightField::Update(float dt) {
       sumH += j < numY - 1 ? m_grid[i][j + 1].height : h;
       m_grid[i][j].velocity += dt * k * (sumH - 4.0f * h);
 
-      // m_grid[i][j].height += (0.25 * sumH - h) * posDamping;  // positional
-      // damping
+      m_grid[i][j].height +=
+          (0.25 * sumH - h) * posDamping;  // positional damping
     }
   }
 

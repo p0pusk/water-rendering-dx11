@@ -31,7 +31,6 @@ class Water : public GeometricPrimitive {
  public:
   Water(std::shared_ptr<DXController>& pDXController)
       : GeometricPrimitive(pDXController),
-        // m_pSph(nullptr),
         // m_sphereIndexCount(0),
         m_numParticles(1000) {}
 
@@ -52,15 +51,14 @@ class Water : public GeometricPrimitive {
  private:
   int m_numParticles;
 
-  // SPH* m_pSph;
   HeightField* m_heightfield;
   std::vector<Vector3> m_vertecies;
   std::vector<UINT16> m_indecies;
 
   // MarchingCube* m_pMarchingCube;
 
-  // ID3D11Buffer* m_pInstanceBuffer;
-  // InstanceData* m_instanceData;
+  ID3D11Buffer* m_pInstanceBuffer;
+  InstanceData* m_instanceData;
 
-  // UINT m_sphereIndexCount;
+  UINT m_sphereIndexCount;
 };

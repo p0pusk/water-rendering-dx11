@@ -87,6 +87,7 @@ class Renderer {
 
   Surface* m_pSurface;
   Water* m_pWater;
+  SPH* m_pSph;
   std::unique_ptr<CubeMap> m_pCubeMap;
 
   SceneBuffer m_sceneBuffer;

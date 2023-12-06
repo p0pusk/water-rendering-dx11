@@ -1,5 +1,7 @@
 #pragma once
 
+#include <DirectXMath.h>
+
 #include <list>
 #include <vector>
 
@@ -7,59 +9,47 @@
 #include "lookup-list.h"
 #include "particle.h"
 
-using namespace std;
+using namespace DirectX;
+using namespace DirectX::SimpleMath;
 
 class MarchingCube {
  public:
-  MarchingCube() {}
-  MarchingCube(const Vector3 _bound, double _l,
-               std::vector<Particle>* _particles, float particles_r);
+  MarchingCube() = delete;
+  MarchingCube(Vector3 worldLen, Vector3 worldPos, float width,
+               std::vector<Particle>& particles, float particle_radius)
+      : m_worldLen(worldLen),
+        m_worldPos(worldPos),
+        m_width(width),
+        m_particle_radius(particle_radius),
+        m_num(
+            XMINT3(worldLen.x / width, worldLen.y / width, worldLen.z / width)),
+        m_particles(particles) {
+    create_grid();
+  }
+
   ~MarchingCube();
 
-  // count the mesh
-  void count(vector<Vector3>& vertexs, vector<UINT>& tri_index);
+  void march(std::vector<Vector3>& vertex);
 
  private:
-  // return the closeset particle if there is a particle contain this vertex,
-  // otherwise NULL
-  Particle* check(Vector3 v) const;
+  void create_grid();
+  void march_cube(XMINT3 pos, std::vector<Vector3>& vertex);
+  bool check_collision(Vector3 point);
+  const int* get_triangulations(UINT x, UINT y, UINT z);
 
-  // if one in one not, return the one in, otherwise, return NULL
-  Particle* diff(Particle* a, Particle* b) const;
+  struct VoxelGrid {
+    std::vector<bool> data;
+    XMINT3 resolution;
 
-  // return the intersect point one the edge
-  Vector3* countInter(const Vector3& v, const Vector3& u, Particle* tmp) const;
-
- private:
-  // position and size of the container
-  Vector3 base, bound;
-  // edge length of the cube
-  double l;
-  // number of edges on each coordinate
-  int total_edge[3];
-  // total number of vertex and edge
-  int sum_v, sum_e;
-
-  // list of particles
-  std::vector<Particle>* particles;
-
-  /*	list of all edges for cubes
-      point to the cut point if intersect with the mesh, otherwise NULL
-      edge are numbered by related vetex towards z, y, x
-   */
-  vector<Vector3*> intersections;
-  // related index offset for twelve edges in a cube
-  vector<int> offset_edge;
-  // related index offset for two edge that is one step different on each
-  // coordinate
-  int dx, dy, dz;
-  // map edge to index of final mesh vertex
-  vector<int> mapping;
-  float m_particles_r;
-
-  // list of all vertexs for cubes, point to the closest particle if it is
-  // inside, otherwise NULL
-  vector<Particle*> inside;
-  // related index offset for eight vertex in a cube
-  vector<int> offset;
+    bool get(size_t x, size_t y, size_t z) {
+      return data[x + y * resolution.x + z * resolution.x * resolution.y];
+    }
+  };
+  VoxelGrid m_voxel_grid;
+  std::vector<Particle>& m_particles;
+  Vector3 m_worldLen;
+  Vector3 m_worldPos;
+  XMINT3 m_num;
+  float m_particle_radius;
+  float m_width;
 };

@@ -129,6 +129,16 @@ HRESULT Renderer::InitScene() {
     result = m_pWater->Init(100);
   }
 
+  try {
+    SPH::Props props;
+    // props.cubeNum = {10, 10, 10};
+    m_pSph = new SPH(m_pDXController, props);
+    m_pSph->Init();
+  } catch (std::exception& e) {
+    std::cout << e.what();
+    assert(1);
+  }
+
   assert(SUCCEEDED(result));
 
   return result;
@@ -146,7 +156,8 @@ bool Renderer::Update() {
 
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
 
-  m_pWater->Update(deltaSec);
+  // m_pWater->Update(deltaSec);
+  m_pSph->Update(deltaSec / 40);
 
   // Move camera
   {
@@ -242,7 +253,8 @@ bool Renderer::Render() {
 
   // m_pCubeMap->Render(m_pSceneBuffer);
   m_pSurface->Render(m_pSceneBuffer);
-  m_pWater->Render(m_pSceneBuffer);
+  // m_pWater->Render(m_pSceneBuffer);
+  m_pSph->Render(m_pSceneBuffer);
 
   // Rendering
   HRESULT result = m_pDXController->m_pSwapChain->Present(0, 0);
@@ -321,7 +333,8 @@ void Renderer::KeyPressed(int keyCode) {
       break;
     case 'I':
     case 'i':
-      m_pWater->StartImpulse(50, 50, 2, 2);
+      // m_pWater->StartImpulse(25, 25, 2, 2);
+      m_pSph->isMarching = !m_pSph->isMarching;
       break;
   }
 }
@@ -350,7 +363,6 @@ void Renderer::KeyReleased(int keyCode) {
 
     case 'I':
     case 'i':
-      // m_pWater->StopImpulse(50, 50, 1);
       break;
   }
 }

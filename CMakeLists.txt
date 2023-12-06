@@ -31,8 +31,8 @@ add_executable(
 
  add_executable(
   test
-	 "src/heightfield-test.cpp"
-	 "src/simulation/heightfield.cpp"
+	 "src/sph-test.cpp"
+	 "src/simulation/sph.cpp"
  )
 
  target_link_libraries(

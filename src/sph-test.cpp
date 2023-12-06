@@ -5,7 +5,7 @@
 int main() {
   SPH::Props props;
   props.cubeNum = {10, 10, 10};
-  SPH sph(props);
+  SPH sph(nullptr, props);
   sph.Init();
 
   auto& p = sph.m_particles[100];
@@ -23,6 +23,6 @@ int main() {
     std::cout << "position: " << p.position.x << " " << p.position.y << " "
               << p.position.z << std::endl;
 
-    sph.Update(0.04);
+    sph.UpdatePhysics(0.04);
   }
 }
