@@ -292,7 +292,7 @@ void Renderer::MouseMoved(int x, int y) {
     m_camera.phi += dx;
     m_camera.theta += dy;
     m_camera.theta =
-        min(max(m_camera.theta, -(float)M_PI / 2), (float)M_PI / 2);
+        std::min(std::max(m_camera.theta, -(float)M_PI / 2), (float)M_PI / 2);
 
     m_prevMouseX = x;
     m_prevMouseY = y;

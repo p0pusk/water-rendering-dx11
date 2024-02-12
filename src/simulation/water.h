@@ -13,7 +13,7 @@
 
 using namespace DirectX::SimpleMath;
 
-class Water : public GeometricPrimitive {
+class Water : public ::GeometricPrimitive {
   struct Vertex {
     Vector3 pos;
   };

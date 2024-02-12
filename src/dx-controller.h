@@ -1,19 +1,6 @@
 #pragma once
 
-#include <assert.h>
-#include <d3d11.h>
-#include <d3dcommon.h>
-#include <d3dcompiler.h>
-#include <minwindef.h>
-#include <windef.h>
-#include <winerror.h>
-#include <winnt.h>
-#include <winuser.h>
-
-#include <iostream>
-#include <stdexcept>
-
-#include "utils.h"
+#include "pch.h"
 
 class DXController {
  public:

@@ -9,11 +9,7 @@
 
 #define _USE_MATH_DEFINES
 
-#include <SimpleMath.h>
-#include <math.h>
-
-#include <iostream>
-#include <vector>
+#include "pch.h"
 
 using namespace DirectX::SimpleMath;
 using namespace DirectX;
@@ -38,7 +34,7 @@ struct SphDB {
   Vector4 dt;
 };
 
-class SPH : GeometricPrimitive {
+class SPH : ::GeometricPrimitive {
  public:
   struct Props {
     Vector3 pos = Vector3::Zero;

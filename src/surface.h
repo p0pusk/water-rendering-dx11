@@ -1,29 +1,12 @@
 #pragma once
 
-#include <DirectXMath.h>
-#include <assert.h>
-#include <d3d11.h>
-#include <d3dcommon.h>
-#include <d3dcompiler.h>
-#include <dxgi.h>
-#include <dxgiformat.h>
-#include <math.h>
-#include <minwindef.h>
-#include <windef.h>
-#include <winerror.h>
-#include <winnt.h>
-#include <winuser.h>
-
-#include <algorithm>
-#include <chrono>
-#include <iostream>
+#include "pch.h"
 
 #include "primitive.h"
-#include "utils.h"
 
 using namespace DirectX::SimpleMath;
 
-class Surface : public GeometricPrimitive {
+class Surface : public ::GeometricPrimitive {
   struct Vertex {
     Vector3 pos;
     Vector3 norm;

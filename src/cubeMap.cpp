@@ -1,6 +1,6 @@
 #include "CubeMap.h"
 
-#include <DDSTextureLoader.h>
+#include "pch.h"
 
 HRESULT CubeMap::InitCubemap() {
   HRESULT result = S_OK;
@@ -175,7 +175,7 @@ void CubeMap::Render(ID3D11Buffer* pSceneBuffer) {
 void CubeMap::Resize(UINT width, UINT height) {
   // Setup skybox sphere
   float n = 0.1f;
-  float fov = (float)M_PI / 3;
+  float fov = M_PI / 3;
   float halfW = tanf(fov / 2) * n;
   float halfH = (float)height / width * halfW;
 

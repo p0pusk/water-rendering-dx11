@@ -1,3 +1,4 @@
+#include "pch.h"
 #include "heightfield.h"
 
 HeightField::HeightField(const Props& props) {
@@ -21,7 +22,7 @@ HeightField::HeightField(const Props& props) {
 }
 
 void HeightField::Update(float dt) {
-  float c = min(m_props.waveSpeed, 0.5 * m_props.w / dt);
+  float c = std::min(m_props.waveSpeed, 0.5f * m_props.w / dt);
   float k = pow(c, 2) / pow(m_props.w, 2);
   float velDamping = 0.9f;
   float posDamping = 0.1f;
@@ -50,7 +51,7 @@ void HeightField::Update(float dt) {
 
         obj.velocity += object_acceleration * dt;
         obj.prev_height = obj.height;
-        obj.height = max(obj.height + obj.velocity * dt, 0);
+        obj.height = std::max(obj.height + obj.velocity * dt, 0.0f);
         if (obj.height == 0) {
           obj.velocity = 0;
           obj.prev_height = 0;
@@ -124,10 +125,10 @@ void HeightField::GetRenderData(std::vector<Vector3>& vertecies,
 }
 
 void HeightField::StartImpulse(int x, int z, float value, float radius) {
-  float maxX = min(x + radius, m_numX - 1);
-  float maxZ = min(z + radius, m_numZ - 1);
-  float minX = max(x - radius, 0);
-  float minZ = max(z - radius, 0);
+  float maxX = std::min(x + radius, m_numX - 1.f);
+  float maxZ = std::min(z + radius, m_numZ - 1.f);
+  float minX = std::max(x - radius, 0.f);
+  float minZ = std::max(z - radius, 0.f);
   for (int i = minX; i <= maxX; i++) {
     for (int j = minZ; j <= maxZ; j++) {
       m_objects[i][j].height += value;
@@ -136,10 +137,10 @@ void HeightField::StartImpulse(int x, int z, float value, float radius) {
 }
 
 void HeightField::StopImpulse(int x, int z, float radius) {
-  float maxX = min(x + radius, m_numX - 1);
-  float maxZ = min(z + radius, m_numZ - 1);
-  float minX = max(x - radius, 0);
-  float minZ = max(z - radius, 0);
+  float maxX = std::min(x + radius, m_numX - 1.f);
+  float maxZ = std::min(z + radius, m_numZ - 1.f);
+  float minX = std::max(x - radius, 0.f);
+  float minZ = std::max(z - radius, 0.f);
   for (int i = minX; i <= maxX; i++) {
     for (int j = minZ; j <= maxZ; j++) {
       m_objects[i][j].height = 0;

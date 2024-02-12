@@ -1,12 +1,6 @@
 #pragma once
 
-#include <DirectXMath.h>
-#include <SimpleMath.h>
-#include <d3d11.h>
-#include <minwindef.h>
-
-#define _USE_MATH_DEFINES
-#include <math.h>
+#include "pch.h"
 
 #include "dx-controller.h"
 

@@ -1,20 +1,106 @@
+//
+// pch.h
+// Header for standard system include files.
+//
+
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
-// Windows Header Files
-#include <windows.h>
-// C RunTime Header Files
+#include <winsdkver.h>
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0601
+#endif
+#include <sdkddkver.h>
+
+// Use the C++ standard templated min/max
+#define NOMINMAX
+
+// DirectX apps don't need GDI
+#define NODRAWTEXT
+#define NOGDI
+#define NOBITMAP
+
+// Include <mcx.h> if you need this
+#define NOMCX
+
+// Include <winsvc.h> if you need this
+#define NOSERVICE
+
+// WinHelp is deprecated
+#define NOHELP
+
+#define WIN32_LEAN_AND_MEAN
+#include <DirectXColors.h>
+#include <DirectXMath.h>
+#include <Windows.h>
 #include <assert.h>
-#include <d3d11.h>
+#include <d3d11_1.h>
 #include <d3dcommon.h>
+#include <d3dcompiler.h>
 #include <dxgi.h>
+#include <dxgi1_2.h>
 #include <malloc.h>
-#include <memory.h>
 #include <stdlib.h>
 #include <tchar.h>
+#include <wrl/client.h>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <exception>
+#include <iterator>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
+
+#include "BufferHelpers.h"
+#include "CommonStates.h"
+#include "DDSTextureLoader.h"
+#include "DirectXHelpers.h"
+#include "Effects.h"
+#include "GamePad.h"
+#include "GeometricPrimitive.h"
+#include "GraphicsMemory.h"
+#include "Keyboard.h"
+#include "Model.h"
+#include "Mouse.h"
+#include "PostProcess.h"
+#include "PrimitiveBatch.h"
+#include "ScreenGrab.h"
+#include "SimpleMath.h"
+#include "SpriteBatch.h"
+#include "SpriteFont.h"
+#include "VertexTypes.h"
+#include "WICTextureLoader.h"
+
+#define M_PI std::acos(-1)
+
+
+namespace DX {
+// Helper class for COM exceptions
+class com_exception : public std::exception {
+ public:
+  com_exception(HRESULT hr) : result(hr) {}
+
+  const char *what() const noexcept override {
+    static char s_str[64] = {};
+    sprintf_s(s_str, "Failure with HRESULT of %08X",
+              static_cast<unsigned int>(result));
+    return s_str;
+  }
+
+ private:
+  HRESULT result;
+};
+
+// Helper utility converts D3D API failures into exceptions.
+inline void ThrowIfFailed(HRESULT hr) {
+  if (FAILED(hr)) {
+    throw com_exception(hr);
+  }
+}
+}  // namespace DX
 
 #define ASSERT_RETURN(expr, returnValue) \
   {                                      \
@@ -97,30 +183,3 @@ inline UINT32 GetBytesPerBlock(const DXGI_FORMAT &fmt) {
   assert(0);
   return 0;
 }
-
-#include <exception>
-
-namespace DX {
-// Helper class for COM exceptions
-class com_exception : public std::exception {
- public:
-  com_exception(HRESULT hr) : result(hr) {}
-
-  const char *what() const noexcept override {
-    static char s_str[64] = {};
-    sprintf_s(s_str, "Failure with HRESULT of %08X",
-              static_cast<unsigned int>(result));
-    return s_str;
-  }
-
- private:
-  HRESULT result;
-};
-
-// Helper utility converts D3D API failures into exceptions.
-inline void ThrowIfFailed(HRESULT hr) {
-  if (FAILED(hr)) {
-    throw com_exception(hr);
-  }
-}
-}  // namespace DX
