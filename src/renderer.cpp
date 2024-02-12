@@ -67,7 +67,7 @@ bool Renderer::Init(HWND hWnd) {
   try {
     result = m_pDXController->Init(hWnd);
   } catch (std::runtime_error e) {
-    assert(0);
+    exit(1);
   }
 
   if (SUCCEEDED(result)) {
@@ -126,17 +126,17 @@ HRESULT Renderer::InitScene() {
 
   if (SUCCEEDED(result)) {
     m_pWater = new Water(m_pDXController);
-    result = m_pWater->Init(100);
+    result = m_pWater->Init(10);
   }
 
   try {
     SPH::Props props;
-    // props.cubeNum = {10, 10, 10};
+    props.cubeNum = {5, 5, 5};
     m_pSph = new SPH(m_pDXController, props);
     m_pSph->Init();
   } catch (std::exception& e) {
     std::cout << e.what();
-    assert(1);
+    exit(1);
   }
 
   assert(SUCCEEDED(result));
@@ -157,7 +157,7 @@ bool Renderer::Update() {
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
 
   // m_pWater->Update(deltaSec);
-  m_pSph->Update(deltaSec / 40);
+  m_pSph->Update(deltaSec);
 
   // Move camera
   {

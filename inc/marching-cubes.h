@@ -18,13 +18,16 @@ class MarchingCube {
   MarchingCube(Vector3 worldLen, Vector3 worldPos, float width,
                std::vector<Particle>& particles, float particle_radius)
       : m_worldLen(worldLen),
-        m_worldPos(worldPos),
+        m_worldOffset(worldPos - particle_radius * Vector3::One),
         m_width(width),
         m_particle_radius(particle_radius),
-        m_num(
-            XMINT3(worldLen.x / width, worldLen.y / width, worldLen.z / width)),
+        m_num(XMINT3(worldLen.x / width + 1, worldLen.y / width + 1,
+                     worldLen.z / width + 1)),
         m_particles(particles) {
-    create_grid();
+    int size = m_num.x * m_num.y * m_num.z;
+    m_voxel_grid.data.resize(size);
+    m_voxel_grid.resolution = m_num;
+    update_grid();
   }
 
   ~MarchingCube();
@@ -32,7 +35,7 @@ class MarchingCube {
   void march(std::vector<Vector3>& vertex);
 
  private:
-  void create_grid();
+  void update_grid();
   void march_cube(XMINT3 pos, std::vector<Vector3>& vertex);
   bool check_collision(Vector3 point);
   const int* get_triangulations(UINT x, UINT y, UINT z);
@@ -48,7 +51,7 @@ class MarchingCube {
   VoxelGrid m_voxel_grid;
   std::vector<Particle>& m_particles;
   Vector3 m_worldLen;
-  Vector3 m_worldPos;
+  Vector3 m_worldOffset;
   XMINT3 m_num;
   float m_particle_radius;
   float m_width;

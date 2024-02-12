@@ -12,7 +12,7 @@ set(SRC
 "src/renderer.cpp"
 "src/surface.cpp"
 ./src/DDS.cpp
-./src/simulation/neighbour-hash.cpp
+# ./src/simulation/neighbour-hash.cpp
 ./src/simulation/marching-cubes.cpp
 "src/simulation/water.cpp"
  "src/simulation/sph.cpp"

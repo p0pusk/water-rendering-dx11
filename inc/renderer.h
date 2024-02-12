@@ -70,7 +70,7 @@ class Renderer {
     DirectX::XMMATRIX vp;
     Vector4 cameraPos;
     Vector4 lightCount;  // x - light count (max 10)
-    Light lights[10000];
+    Light lights[10];
     Vector4 ambientColor;
   };
 

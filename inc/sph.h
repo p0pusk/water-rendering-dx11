@@ -18,6 +18,26 @@
 using namespace DirectX::SimpleMath;
 using namespace DirectX;
 
+struct MarchingVertex {
+  Vector3 pos;
+  Vector3 normal;
+};
+
+struct SphCB {
+  Vector3 pos;
+  UINT particleNum;
+  XMINT3 cubeNum;
+  float cubeLen;
+  float h;
+  float mass;
+  float dynamicViscosity;
+  float dampingCoeff;
+};
+
+struct SphDB {
+  Vector4 dt;
+};
+
 class SPH : GeometricPrimitive {
  public:
   struct Props {
@@ -32,13 +52,17 @@ class SPH : GeometricPrimitive {
   };
 
   std::vector<Particle> m_particles;
+  UINT m_num_particles;
   int n = 0;
+  bool m_isCpu = false;
 
   SPH() = delete;
   SPH(SPH const& s) = delete;
   SPH(SPH&& s) = delete;
   SPH(std::shared_ptr<DXController> dxController, Props& props)
-      : GeometricPrimitive(dxController), m_props(props) {
+      : GeometricPrimitive(dxController),
+        m_props(props),
+        m_num_particles(props.cubeNum.x * props.cubeNum.y * props.cubeNum.z) {
     poly6 = 315.0f / (64.0f * M_PI * pow(props.h, 9));
     spikyGrad = -45.0f / (M_PI * pow(props.h, 6));
     spikyLap = 45.0f / (M_PI * pow(props.h, 6));
@@ -76,15 +100,27 @@ class SPH : GeometricPrimitive {
   std::vector<UINT> m_index;
 
   ID3D11Buffer* m_pMarchingVertexBuffer;
+  ID3D11ComputeShader* m_pSPHComputeShader;
   ID3D11VertexShader* m_pMarchingVertexShader;
   ID3D11PixelShader* m_pMarchingPixelShader;
+
   ID3D11InputLayout* m_pMarchingInputLayout;
+
+  ID3D11Buffer* m_pSphDataBuffer;
+  ID3D11Buffer* m_pSphBuffer;
+  SphCB m_sphCB;
+  ID3D11Buffer* m_pSphCB;
+  SphDB m_sphDB;
+  ID3D11Buffer* m_pSphDB;
+  ID3D11UnorderedAccessView* m_pSphBufferUAV;
+  ID3D11ShaderResourceView* m_pSphBufferSRV;
 
   HRESULT InitSpheres();
   HRESULT InitMarching();
-  void UpdateDensity();
-  void UpdateForces();
+  HRESULT InitSph();
   void CheckBoundary(Particle& p);
+
+  HRESULT UpdatePhysGPU(float dt);
 
   void RenderMarching(ID3D11Buffer* pSceneBuffer = nullptr);
   void RenderSpheres(ID3D11Buffer* pSceneBuffer = nullptr);
