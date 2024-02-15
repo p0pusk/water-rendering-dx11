@@ -24,7 +24,8 @@ struct Particle
     float pressure;
     float4 viscosity;
     float4 force;
-    float4 velocity;
+    float3 velocity;
+    float hash;
 };
 
 RWStructuredBuffer<Particle> particles : register(u0);
@@ -34,6 +35,41 @@ static const float poly6 = 315.0f / (64.0f * PI * pow(h, 9));
 static const float spikyGrad = -45.0f / (PI * pow(h, 6));
 static const float spikyLap = 45.0f / (PI * pow(h, 6));
 static const float h2 = pow(h, 2);
+
+static const uint hash_size = 10000;
+static const uint NO_PARTICLE = 0xFFFFFFFF;
+
+
+float GetHash(in float3 cell)
+{
+    return ((uint) (cell.x * 73856093) ^ (uint) (cell.y * 19349663) ^ (uint) (cell.z * 83492791)) % hash_size;
+}
+
+uint3 GetPos(in float3 position)
+{
+    return floor((position + worldPos) / h);
+}
+
+static uint grid[hash_size];
+
+void CreateTable()
+{
+    for (uint i = 0; i < hash_size; i++)
+    {
+        grid[i] = NO_PARTICLE;
+    }
+    uint prevHash = NO_PARTICLE;
+    for (i = 0; i < particlesNum; i++)
+    {
+        uint currHash = particles[i].hash;
+        if (currHash != prevHash)
+        {
+            grid[currHash] = i;
+        }
+        prevHash = currHash;
+    }
+}
+
 
 void CheckBoundary(in uint index)
 {
@@ -51,9 +87,9 @@ void CheckBoundary(in uint index)
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
-    if (particles[index].position.x > -h + worldPos.x + len.x)
+    if (particles[index].position.x > -h + worldPos.x + 1.5f * len.x)
     {
-        particles[index].position.x = -particles[index].position.x + 2 * (-h + worldPos.x + len.x);
+        particles[index].position.x = -particles[index].position.x + 2 * (-h + worldPos.x + 1.5f * len.x);
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
@@ -124,7 +160,7 @@ void update(in uint startIndex, in uint endIndex)
 
 
                 particles[p].viscosity += dynamicViscosity * mass *
-                       (particles[n].velocity - particles[p].velocity) / particles[n].density * spikyLap *
+                       float4(particles[n].velocity - particles[p].velocity, 0) / particles[n].density * spikyLap *
                        (h - d);
             }
         }

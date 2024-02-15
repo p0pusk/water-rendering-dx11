@@ -40,7 +40,7 @@ HRESULT SPH::InitSph() {
   float& h = m_props.h;
   float& r = m_props.particleRadius;
   float separation = h - 0.01f;
-  Vector3 offset = {h, h + m_props.cubeNum.y * m_props.cubeLen, h};
+  Vector3 offset = {h, 5 * h, h};
 
   m_particles.resize(m_props.cubeNum.x * m_props.cubeNum.y * m_props.cubeNum.z);
 
@@ -54,7 +54,7 @@ HRESULT SPH::InitSph() {
         p.position.x = m_props.pos.x + x * separation + offset.x;
         p.position.y = m_props.pos.y + y * separation + offset.y;
         p.position.z = m_props.pos.z + z * separation + offset.z;
-        p.velocity = Vector4::Zero;
+        p.velocity = Vector3::Zero;
       }
     }
   }
@@ -361,18 +361,35 @@ void SPH::UpdatePhysics(float dt) {
   n++;
   float& h = m_props.h;
 
+  m_hashM.clear();
+
+  // init hash map
+  for (auto& p : m_particles) {
+    m_hashM.insert(std::make_pair(GetHash(GetCell(p.position)), &p));
+  }
+
   // Compute density
   for (auto& p : m_particles) {
     p.density = 0;
-    for (auto& n : m_particles) {
-      float d2 = Vector3::DistanceSquared(p.position, n.position);
-      if (d2 < h2) {
-        p.density += m_props.mass * poly6 * pow(h2 - d2, 3);
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
+        for (int k = -1; k <= 1; k++) {
+          Vector3 localPos = p.position + Vector3(i, j, k) * h;
+          UINT key = GetHash(GetCell(localPos));
+          int count = m_hashM.count(key);
+          auto it = m_hashM.find(key);
+          for (int c = 0; c < count; c++) {
+            float d2 =
+                Vector3::DistanceSquared(p.position, it->second->position);
+            if (d2 < h2) {
+              p.density += m_props.mass * poly6 * pow(h2 - d2, 3);
+            }
+            it++;
+          }
+        }
       }
     }
   }
-
-  // UpdateDensity();
 
   // Compute pressure
   for (auto& p : m_particles) {
@@ -386,16 +403,29 @@ void SPH::UpdatePhysics(float dt) {
     p.pressureGrad = Vector3::Zero;
     p.force = Vector4(0, -9.8f * p.density, 0, 0);
     p.viscosity = Vector4::Zero;
-    for (auto& n : m_particles) {
-      float d = Vector3::Distance(p.position, n.position);
-      Vector3 dir = (p.position - n.position);
-      dir.Normalize();
-      if (d < h) {
-        p.pressureGrad += dir * m_props.mass * (p.pressure + n.pressure) /
-                          (2 * n.density) * spikyGrad * std::pow(h - d, 2);
-        p.viscosity += m_props.dynamicViscosity * m_props.mass *
-                       (n.velocity - p.velocity) / n.density * spikyLap *
-                       (m_props.h - d);
+
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
+        for (int k = -1; k <= 1; k++) {
+          Vector3 localPos = p.position + Vector3(i, j, k) * h;
+          UINT key = GetHash(GetCell(localPos));
+          int count = m_hashM.count(key);
+          auto it = m_hashM.find(key);
+          for (int c = 0; c < count; c++) {
+            float d = Vector3::Distance(p.position, it->second->position);
+            Vector3 dir = (p.position - it->second->position);
+            dir.Normalize();
+            if (d < h) {
+              p.pressureGrad +=
+                  dir * m_props.mass * (p.pressure + it->second->pressure) /
+                  (2 * it->second->density) * spikyGrad * std::pow(h - d, 2);
+              p.viscosity += m_props.dynamicViscosity * m_props.mass *
+                             Vector4(it->second->velocity - p.velocity) /
+                             it->second->density * spikyLap * (m_props.h - d);
+            }
+            it++;
+          }
+        }
       }
     }
   }
@@ -404,7 +434,7 @@ void SPH::UpdatePhysics(float dt) {
   // TimeStep
   for (auto& p : m_particles) {
     p.velocity +=
-        dt * (Vector4(p.pressureGrad) + p.force + p.viscosity) / p.density;
+        dt * (p.pressureGrad + Vector3(p.force + p.viscosity)) / p.density;
     p.position += dt * Vector3(p.velocity);
 
     // boundary condition
@@ -551,4 +581,14 @@ void SPH::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
   pContext->DrawIndexedInstanced(m_sphereIndexCount, m_particles.size(), 0, 0,
                                  0);
+}
+
+UINT SPH::GetHash(XMINT3 cell) {
+  return ((cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791)) %
+         m_num_particles;
+}
+
+XMINT3 SPH::GetCell(Vector3 position) {
+  auto res = (position + m_props.pos) / m_props.h;
+  return XMINT3(res.x, res.y, res.z);
 }

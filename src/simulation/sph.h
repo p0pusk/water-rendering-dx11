@@ -78,7 +78,10 @@ class SPH : ::GeometricPrimitive {
   float spikyGrad;
   float spikyLap;
 
-  NeighbourHash m_hashM;
+  std::unordered_multimap<UINT, Particle*> m_hashM;
+
+  UINT GetHash(XMINT3 cell);
+  XMINT3 GetCell(Vector3 pos);
 
   float h2;
   UINT m_sphereIndexCount;

@@ -82,9 +82,9 @@ bool Renderer::Init(HWND hWnd) {
   // Initial camera setup
   if (SUCCEEDED(result)) {
     m_camera.poi = Vector3{0, 0, 0};
-    m_camera.r = 5.0f;
-    m_camera.phi = -(float)M_PI / 4;
-    m_camera.theta = (float)M_PI / 4;
+    m_camera.r = 10.f;
+    m_camera.phi = -(float)M_PI / 3;
+    m_camera.theta = (float)M_PI / 8;
   }
 
   if (FAILED(result)) {
@@ -131,7 +131,7 @@ HRESULT Renderer::InitScene() {
 
   try {
     SPH::Props props;
-    props.cubeNum = {5, 5, 5};
+    props.cubeNum = {10, 20, 10};
     m_pSph = new SPH(m_pDXController, props);
     m_pSph->Init();
   } catch (std::exception& e) {
@@ -157,7 +157,7 @@ bool Renderer::Update() {
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
 
   // m_pWater->Update(deltaSec);
-  m_pSph->Update(deltaSec);
+  m_pSph->Update(1.f / 120.f);
 
   // Move camera
   {

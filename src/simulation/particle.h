@@ -11,5 +11,6 @@ struct Particle {
   float pressure;
   Vector4 viscosity;
   Vector4 force;
-  Vector4 velocity;
+  Vector3 velocity;
+  float hash;
 };
