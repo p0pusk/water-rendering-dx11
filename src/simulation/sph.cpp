@@ -111,7 +111,7 @@ HRESULT SPH::InitSph() {
     D3D11_BUFFER_DESC desc = {};
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.ByteWidth = m_num_particles * sizeof(Particle);
-    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     desc.StructureByteStride = sizeof(Particle);
@@ -144,19 +144,18 @@ HRESULT SPH::InitSph() {
     DX::ThrowIfFailed(result);
   }
 
-  // create SPH constant buffer for vertex shader
+  // create SPH SRV
   {
-    D3D11_BUFFER_DESC desc = {};
-    desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.ByteWidth = m_num_particles * sizeof(Particle);
-    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    desc.CPUAccessFlags = 0;
-    desc.MiscFlags = 0;
-    desc.StructureByteStride = sizeof(Particle);
+    D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+    desc.Format = DXGI_FORMAT_UNKNOWN;
+    desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    desc.Buffer.FirstElement = 0;
+    desc.Buffer.NumElements = m_num_particles;
 
-    result = m_pDXC->m_pDevice->CreateBuffer(&desc, nullptr, &m_pSphBuffer);
+    result = m_pDXC->m_pDevice->CreateShaderResourceView(
+        m_pSphDataBuffer, &desc, &m_pSphBufferSRV);
     DX::ThrowIfFailed(result);
-    result = SetResourceName(m_pSphBuffer, "SphBuffer");
+    result = SetResourceName(m_pSphBufferSRV, "SphBufferSRV");
     DX::ThrowIfFailed(result);
   }
 
@@ -435,8 +434,6 @@ HRESULT SPH::UpdatePhysGPU(float dt) {
   m_pDXC->m_pDeviceContext->CSSetShader(m_pSPHComputeShader, nullptr, 0);
   m_pDXC->m_pDeviceContext->Dispatch(groupNumber, 1, 1);
 
-  m_pDXC->m_pDeviceContext->CopyResource(m_pSphBuffer, m_pSphDataBuffer);
-
   return result;
 }
 
@@ -546,8 +543,10 @@ void SPH::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
   pContext->VSSetShader(m_pVertexShader, nullptr, 0);
   pContext->PSSetShader(m_pPixelShader, nullptr, 0);
 
-  ID3D11Buffer* cbuffers[2] = {pSceneBuffer, m_pSphBuffer};
-  pContext->VSSetConstantBuffers(0, 2, cbuffers);
+  ID3D11Buffer* cbuffers[1] = {pSceneBuffer};
+  pContext->VSSetConstantBuffers(0, 1, cbuffers);
+  ID3D11ShaderResourceView* srvs[1] = {m_pSphBufferSRV};
+  pContext->VSSetShaderResources(0, 1, srvs);
 
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
   pContext->DrawIndexedInstanced(m_sphereIndexCount, m_particles.size(), 0, 0,

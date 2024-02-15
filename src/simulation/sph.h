@@ -103,7 +103,6 @@ class SPH : ::GeometricPrimitive {
   ID3D11InputLayout* m_pMarchingInputLayout;
 
   ID3D11Buffer* m_pSphDataBuffer;
-  ID3D11Buffer* m_pSphBuffer;
   SphCB m_sphCB;
   ID3D11Buffer* m_pSphCB;
   SphDB m_sphDB;

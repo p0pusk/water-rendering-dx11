@@ -12,10 +12,7 @@ struct Particle
 };
 
 
-cbuffer particles : register(b1)
-{
-    Particle data[100];
-}
+StructuredBuffer<Particle> particles : register(t0);
 
 struct VSInput
 {
@@ -36,8 +33,7 @@ VSOutput vs(VSInput vertex)
 {
     VSOutput result;
 
-    //result.pos = mul(vp, float4(vertex.pos + vertex.worldPos, 1));
-    result.pos = mul(vp, float4(data[vertex.instanceID].position + vertex.pos, 1));
+    result.pos = mul(vp, float4(particles[vertex.instanceID].position + vertex.pos, 1));
     result.worldPos = vertex.
 worldPos;
     float c = clamp(0.25, 1, log10(vertex.density - 7));
