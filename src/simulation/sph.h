@@ -28,9 +28,6 @@ struct SphCB {
   float mass;
   float dynamicViscosity;
   float dampingCoeff;
-};
-
-struct SphDB {
   Vector4 dt;
 };
 
@@ -48,9 +45,11 @@ class SPH : ::GeometricPrimitive {
   };
 
   std::vector<Particle> m_particles;
+  std::vector<UINT> m_hash_table;
   UINT m_num_particles;
   int n = 0;
   bool m_isCpu = false;
+  static const UINT TABLE_SIZE = 262144;
 
   SPH() = delete;
   SPH(SPH const& s) = delete;
@@ -63,6 +62,7 @@ class SPH : ::GeometricPrimitive {
     spikyGrad = -45.0f / (M_PI * pow(props.h, 6));
     spikyLap = 45.0f / (M_PI * pow(props.h, 6));
     h2 = props.h * props.h;
+    m_hash_table.resize(TABLE_SIZE);
   };
 
   HRESULT Init() override;
@@ -102,15 +102,16 @@ class SPH : ::GeometricPrimitive {
   ID3D11ComputeShader* m_pSPHComputeShader;
   ID3D11VertexShader* m_pMarchingVertexShader;
   ID3D11PixelShader* m_pMarchingPixelShader;
+  ID3D11ComputeShader* m_pMarchingComputeShader;
 
   ID3D11InputLayout* m_pMarchingInputLayout;
 
   ID3D11Buffer* m_pSphDataBuffer;
   SphCB m_sphCB;
   ID3D11Buffer* m_pSphCB;
-  SphDB m_sphDB;
-  ID3D11Buffer* m_pSphDB;
   ID3D11UnorderedAccessView* m_pSphBufferUAV;
+  ID3D11Buffer* m_pHashBuffer;
+  ID3D11UnorderedAccessView* m_pHashBufferUAV;
   ID3D11ShaderResourceView* m_pSphBufferSRV;
 
   HRESULT InitSpheres();

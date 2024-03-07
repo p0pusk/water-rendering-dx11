@@ -55,9 +55,13 @@ HRESULT SPH::InitSph() {
         p.position.y = m_props.pos.y + y * separation + offset.y;
         p.position.z = m_props.pos.z + z * separation + offset.z;
         p.velocity = Vector3::Zero;
+        p.hash = GetHash(GetCell(p.position));
       }
     }
   }
+
+  std::sort(m_particles.begin(), m_particles.end(),
+            [](Particle& a, Particle& b) { return a.hash < b.hash; });
 
   // create sph constant buffer
   {
@@ -69,6 +73,7 @@ HRESULT SPH::InitSph() {
     m_sphCB.mass = m_props.mass;
     m_sphCB.dynamicViscosity = m_props.dynamicViscosity;
     m_sphCB.dampingCoeff = m_props.dampingCoeff;
+    m_sphCB.dt.x = 1.f / 120.f;
 
     D3D11_BUFFER_DESC desc = {};
     desc.Usage = D3D11_USAGE_DEFAULT;
@@ -87,32 +92,13 @@ HRESULT SPH::InitSph() {
     DX::ThrowIfFailed(result);
   }
 
-  // create SPH DB
-  {
-    D3D11_BUFFER_DESC desc = {};
-    desc.Usage = D3D11_USAGE_DYNAMIC;
-    desc.ByteWidth = sizeof(SphDB);
-    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-    desc.MiscFlags = 0;
-    desc.StructureByteStride = 0;
-
-    D3D11_SUBRESOURCE_DATA data = {};
-    data.pSysMem = &m_sphDB;
-
-    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pSphDB);
-    DX::ThrowIfFailed(result);
-    result = SetResourceName(m_pSphDB, "SphDynamicBuffer");
-    DX::ThrowIfFailed(result);
-  }
-
   // create data buffer
   {
     D3D11_BUFFER_DESC desc = {};
     desc.Usage = D3D11_USAGE_DEFAULT;
     desc.ByteWidth = m_num_particles * sizeof(Particle);
     desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
-    desc.CPUAccessFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     desc.StructureByteStride = sizeof(Particle);
 
@@ -123,9 +109,6 @@ HRESULT SPH::InitSph() {
     DX::ThrowIfFailed(result);
     result = SetResourceName(m_pSphDataBuffer, "SphDataBuffer");
     DX::ThrowIfFailed(result);
-
-    m_pDXC->m_pDeviceContext->UpdateSubresource(m_pSphDataBuffer, 0, nullptr,
-                                                m_particles.data(), 0, 0);
   }
 
   // create SPH UAV
@@ -156,6 +139,41 @@ HRESULT SPH::InitSph() {
         m_pSphDataBuffer, &desc, &m_pSphBufferSRV);
     DX::ThrowIfFailed(result);
     result = SetResourceName(m_pSphBufferSRV, "SphBufferSRV");
+    DX::ThrowIfFailed(result);
+  }
+
+  // create Hash buffer
+  {
+    D3D11_BUFFER_DESC desc = {};
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.ByteWidth = TABLE_SIZE * sizeof(UINT);
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    desc.StructureByteStride = sizeof(UINT);
+
+    D3D11_SUBRESOURCE_DATA data = {};
+    data.pSysMem = m_hash_table.data();
+
+    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pHashBuffer);
+    DX::ThrowIfFailed(result);
+    result = SetResourceName(m_pHashBuffer, "HashBuffer");
+    DX::ThrowIfFailed(result);
+  }
+
+  // create Hash UAV
+  {
+    D3D11_UNORDERED_ACCESS_VIEW_DESC desc = {};
+    desc.Format = DXGI_FORMAT_UNKNOWN;
+    desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+    desc.Buffer.FirstElement = 0;
+    desc.Buffer.NumElements = TABLE_SIZE;
+    desc.Buffer.Flags = 0;
+
+    result = m_pDXC->m_pDevice->CreateUnorderedAccessView(m_pHashBuffer, &desc,
+                                                          &m_pHashBufferUAV);
+    DX::ThrowIfFailed(result);
+    result = SetResourceName(m_pHashBufferUAV, "HashBufferUAV");
     DX::ThrowIfFailed(result);
   }
 
@@ -321,8 +339,8 @@ HRESULT SPH::InitMarching() {
     D3D11_BUFFER_DESC desc = {};
     desc.ByteWidth = (UINT)(max_n * sizeof(Vector3));
     desc.Usage = D3D11_USAGE_DYNAMIC;
-    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER | D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE | D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS;
     desc.MiscFlags = 0;
     desc.StructureByteStride = 0;
 
@@ -343,6 +361,11 @@ HRESULT SPH::InitMarching() {
   result = CompileAndCreateShader(L"../shaders/MarchingCubes.ps",
                                   (ID3D11DeviceChild**)&m_pMarchingPixelShader);
   DX::ThrowIfFailed(result);
+
+  result = CompileAndCreateShader(L"../shaders/MarchingCubes.cs",
+                                  (ID3D11DeviceChild**)&m_pMarchingComputeShader);
+  DX::ThrowIfFailed(result);
+
 
   result = m_pDXC->m_pDevice->CreateInputLayout(
       InputDesc, ARRAYSIZE(InputDesc), pVertexShaderCode->GetBufferPointer(),
@@ -445,24 +468,36 @@ void SPH::UpdatePhysics(float dt) {
 HRESULT SPH::UpdatePhysGPU(float dt) {
   HRESULT result = S_OK;
 
-  m_sphDB.dt.x = dt;
   D3D11_MAPPED_SUBRESOURCE resource;
-  m_pDXC->m_pDeviceContext->Map(m_pSphDB, 0, D3D11_MAP_WRITE_DISCARD, 0,
-                                &resource);
-  memcpy(resource.pData, &m_sphDB, sizeof(m_sphDB));
-  m_pDXC->m_pDeviceContext->Unmap(m_pSphDB, 0);
+  result = m_pDXC->m_pDeviceContext->Map(m_pSphDataBuffer, 0,
+                                         D3D11_MAP_READ_WRITE, 0, &resource);
+  DX::ThrowIfFailed(result);
+  Particle* particles = (Particle*)resource.pData;
+  for (int i = 0; i < m_num_particles; i++) {
+    particles[i].hash = GetHash(GetCell(particles[i].position));
+  }
+
+  std::sort(particles, particles + m_num_particles,
+            [](Particle& a, Particle& b) { return a.hash < b.hash; });
+
+  m_pDXC->m_pDeviceContext->Unmap(m_pSphDataBuffer, 0);
 
   UINT groupNumber = DivUp(m_num_particles, 64u);
 
-  ID3D11UnorderedAccessView* uavBuffers[1] = {m_pSphBufferUAV};
-  ID3D11Buffer* cb[2] = {m_pSphCB, m_pSphDB};
+  ID3D11Buffer* cb[1] = {m_pSphCB};
+  ID3D11UnorderedAccessView* uavBuffers[2] = {m_pSphBufferUAV,
+                                              m_pHashBufferUAV};
 
-  m_pDXC->m_pDeviceContext->CSSetConstantBuffers(0, 2, cb);
-  m_pDXC->m_pDeviceContext->CSSetUnorderedAccessViews(0, 1, uavBuffers,
+  m_pDXC->m_pDeviceContext->CSSetConstantBuffers(0, 1, cb);
+  m_pDXC->m_pDeviceContext->CSSetUnorderedAccessViews(0, 2, uavBuffers,
                                                       nullptr);
 
   m_pDXC->m_pDeviceContext->CSSetShader(m_pSPHComputeShader, nullptr, 0);
   m_pDXC->m_pDeviceContext->Dispatch(groupNumber, 1, 1);
+
+  ID3D11UnorderedAccessView* nullUavBuffers[1] = {NULL};
+  m_pDXC->m_pDeviceContext->CSSetUnorderedAccessViews(0, 1, nullUavBuffers,
+                                                      nullptr);
 
   return result;
 }
@@ -476,8 +511,8 @@ void SPH::Update(float dt) {
 
   if (isMarching) {
     m_pMarchingCube->march(m_vertex);
-    D3D11_MAPPED_SUBRESOURCE resource;
     HRESULT result = S_OK;
+    D3D11_MAPPED_SUBRESOURCE resource;
     result = m_pDXC->m_pDeviceContext->Map(
         m_pMarchingVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &resource);
     DX::ThrowIfFailed(result);
@@ -585,7 +620,7 @@ void SPH::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
 
 UINT SPH::GetHash(XMINT3 cell) {
   return ((cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791)) %
-         m_num_particles;
+         TABLE_SIZE;
 }
 
 XMINT3 SPH::GetCell(Vector3 position) {

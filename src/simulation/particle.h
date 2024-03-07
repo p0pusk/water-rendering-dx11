@@ -12,5 +12,5 @@ struct Particle {
   Vector4 viscosity;
   Vector4 force;
   Vector3 velocity;
-  float hash;
+  UINT hash;
 };

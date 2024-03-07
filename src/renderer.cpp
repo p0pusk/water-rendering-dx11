@@ -131,7 +131,7 @@ HRESULT Renderer::InitScene() {
 
   try {
     SPH::Props props;
-    props.cubeNum = {10, 20, 10};
+    props.cubeNum = {1, 1, 1};
     m_pSph = new SPH(m_pDXController, props);
     m_pSph->Init();
   } catch (std::exception& e) {
@@ -157,7 +157,7 @@ bool Renderer::Update() {
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
 
   // m_pWater->Update(deltaSec);
-  m_pSph->Update(1.f / 120.f);
+  m_pSph->Update(1.f / 50000.f);
 
   // Move camera
   {
