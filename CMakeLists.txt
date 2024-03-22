@@ -4,30 +4,31 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems
 
 project(wat24)
 
-set(CMAKE_CXX_STANDART 20)
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(SRC
-"src/main.cpp"
-"src/renderer.cpp"
-"src/surface.cpp"
+./src/main.cpp
+./src/renderer.cpp
 ./src/DDS.cpp
-# ./src/simulation/neighbour-hash.cpp
 ./src/simulation/marching-cubes.cpp
-"src/simulation/water.cpp"
- "src/simulation/sph.cpp"
- "src/dx-controller.cpp"
- "src/cubemap.cpp"
- "src/primitive.cpp"
- ./src/simulation/heightfield.cpp
-)
+# ./src/simulation/marching-cubes-gpu.cpp
+./src/simulation/water.cpp
+./src/simulationRenderer.cpp
+./src/simulation/heightfield.cpp
+./src/cubemap.cpp
+./src/simulation/settings.h
+./src/voxelGridRenderer.h
+./src/surface.cpp
+ ./src/simulation/sph.cpp
+ ./src/device-resources.cpp
+ ./src/primitive.cpp)
 
 
 option(BUILD_TEST_TEMPLATE "Ignore warnings related to TODOs" OFF)
 
 option(ENABLE_CODE_ANALYSIS "Use Static Code Analysis on build" OFF)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -129,7 +130,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Microsoft::DirectXTK)
 if( CMAKE_CXX_COMPILER_ID MATCHES "Clang|IntelLLVM" )
     target_compile_options(${PROJECT_NAME} PRIVATE
         -Wpedantic -Wextra
-        "-Wno-c++98-compat" "-Wno-c++98-compat-pedantic"
         "-Wno-exit-time-destructors" "-Wno-global-constructors" "-Wno-language-extension-token"
         "-Wno-missing-prototypes" "-Wno-missing-variable-declarations" "-Wno-reserved-id-macro")
 
@@ -146,7 +146,8 @@ elseif(MINGW)
 elseif( CMAKE_CXX_COMPILER_ID MATCHES "MSVC" )
     target_compile_options(${PROJECT_NAME} PRIVATE
          /sdl /permissive- /Zc:__cplusplus /Zc:inline /fp:fast
-         "/wd4061" "/wd4365" "/wd4514" "/wd4571" "/wd4668" "/wd4710" "/wd4820" "/wd5039" "/wd5045")
+         "/wd4061" "/wd4365" "/wd4514" "/wd4571" "/wd4668" "/wd4710" "/wd4820"
+         "/wd5039" "/wd5045")
 
     if(ENABLE_CODE_ANALYSIS)
         target_compile_options(${PROJECT_NAME} PRIVATE /analyze)

@@ -38,15 +38,18 @@
 #include <d3dcompiler.h>
 #include <dxgi.h>
 #include <dxgi1_2.h>
+#include <dxgidebug.h>
 #include <malloc.h>
 #include <stdlib.h>
 #include <tchar.h>
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <exception>
+#include <format>
 #include <iterator>
 #include <memory>
 #include <stdexcept>
@@ -76,28 +79,32 @@
 
 #define M_PI std::acos(-1)
 
+using namespace DirectX::SimpleMath;
+using namespace DirectX;
 
 namespace DX {
 // Helper class for COM exceptions
 class com_exception : public std::exception {
  public:
-  com_exception(HRESULT hr) : result(hr) {}
+  com_exception(HRESULT hr, const std::string &message)
+      : result(hr), mes(message) {}
 
   const char *what() const noexcept override {
-    static char s_str[64] = {};
-    sprintf_s(s_str, "Failure with HRESULT of %08X",
-              static_cast<unsigned int>(result));
+    static char s_str[128] = {};
+    sprintf_s(s_str, "EXCEPTION: Failure with HRESULT of %08X. %s",
+              static_cast<unsigned int>(result), mes.c_str());
     return s_str;
   }
 
  private:
   HRESULT result;
+  const std::string &mes;
 };
 
 // Helper utility converts D3D API failures into exceptions.
-inline void ThrowIfFailed(HRESULT hr) {
+inline void ThrowIfFailed(HRESULT hr, const std::string &message = "") {
   if (FAILED(hr)) {
-    throw com_exception(hr);
+    throw com_exception(hr, message);
   }
 }
 }  // namespace DX

@@ -13,7 +13,7 @@
 
 using namespace DirectX::SimpleMath;
 
-class Water : public ::GeometricPrimitive {
+class Water : public ::Primitive {
   struct Vertex {
     Vector3 pos;
   };
@@ -29,8 +29,8 @@ class Water : public ::GeometricPrimitive {
   };
 
  public:
-  Water(std::shared_ptr<DXController>& pDXController)
-      : GeometricPrimitive(pDXController),
+  Water(std::shared_ptr<DX::DeviceResources>& pDeviceResources)
+      : Primitive(pDeviceResources),
         // m_sphereIndexCount(0),
         m_numParticles(1000) {}
 

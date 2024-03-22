@@ -1,12 +1,11 @@
 #pragma once
 
 #include "pch.h"
-
 #include "primitive.h"
 
 using namespace DirectX::SimpleMath;
 
-class Surface : public ::GeometricPrimitive {
+class Surface : public ::Primitive {
   struct Vertex {
     Vector3 pos;
     Vector3 norm;
@@ -19,10 +18,10 @@ class Surface : public ::GeometricPrimitive {
   };
 
  public:
-  Surface(std::shared_ptr<DXController>& pDXController,
+  Surface(std::shared_ptr<DX::DeviceResources> pDeviceResources,
           ID3D11ShaderResourceView* pCubemapView)
 
-      : GeometricPrimitive(pDXController),
+      : Primitive(pDeviceResources),
         m_pCubemapView(pCubemapView),
         m_pGeomBuffer(nullptr) {}
 

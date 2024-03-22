@@ -7,37 +7,19 @@
 using namespace std;
 
 void MarchingCube::update_grid() {
-  int size = m_num.x * m_num.y * m_num.z;
   for (int i = 0; i < m_voxel_grid.data.size(); i++) {
     m_voxel_grid.data[i] = false;
   }
 
-  for (auto& p : m_particles) {
-    int x = p.position.x / m_width - m_worldOffset.x;
-    int y = p.position.y / m_width - m_worldOffset.y;
-    int z = p.position.z / m_width - m_worldOffset.z;
-
-    int radius = m_particle_radius / m_width;
-    for (int i = x - radius; i < m_num.x && i >= 0 && i <= x + radius; i++) {
-      for (int j = y - radius; j < m_num.y && j >= 0 && j <= y + radius; j++) {
-        for (int k = z - radius; k < m_num.z && k >= 0 && k <= z + radius;
-             k++) {
-          int index = i + (k * m_num.y + j) * m_num.x;
-          m_voxel_grid.data[index] = true;
-        }
+  for (int i = 0; i < m_num.x - 1; ++i) {
+    for (int j = 0; j < m_num.y - 1; ++j) {
+      for (int k = 0; k < m_num.z - 1; ++k) {
+        int index = i + (k * m_num.y + j) * m_num.x;
+        m_voxel_grid.data[index] =
+            check_collision(Vector3(i, j, k) * m_width + m_worldOffset);
       }
     }
   }
-
-   //for (int x = 0; x < m_num.x; x++) {
-   //  for (int y = 0; y < m_num.y; y++) {
-   //    for (int z = 0; z < m_num.z; z++) {
-   //      int index = x + (z * m_num.y + y) * m_num.x;
-   //      Vector3 worldPos = m_width * Vector3(x, y, z) + m_worldPos;
-   //      m_voxel_grid.data[index] = check_collision(worldPos);
-   //    }
-   //  }
-   //}
 }
 
 void MarchingCube::march(std::vector<Vector3>& vertex) {
@@ -111,7 +93,7 @@ bool MarchingCube::check_collision(Vector3 point) {
   float min_dist = m_particle_radius;
   for (auto& p : m_particles) {
     float d = Vector3::Distance(point, p.position);
-    if (d <= min_dist) {
+    if (d < min_dist) {
       return true;
     }
   }

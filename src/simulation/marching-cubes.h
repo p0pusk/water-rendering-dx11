@@ -8,6 +8,7 @@
 #include "SimpleMath.h"
 #include "lookup-list.h"
 #include "particle.h"
+#include "settings.h"
 
 using namespace DirectX;
 using namespace DirectX::SimpleMath;
@@ -15,22 +16,22 @@ using namespace DirectX::SimpleMath;
 class MarchingCube {
  public:
   MarchingCube() = delete;
-  MarchingCube(Vector3 worldLen, Vector3 worldPos, float width,
-               std::vector<Particle>& particles, float particle_radius)
-      : m_worldLen(worldLen),
-        m_worldOffset(worldPos - particle_radius * Vector3::One),
-        m_width(width),
-        m_particle_radius(particle_radius),
-        m_num(XMINT3(worldLen.x / width + 1, worldLen.y / width + 1,
-                     worldLen.z / width + 1)),
-        m_particles(particles) {
+  MarchingCube(const Settings& settings, const std::vector<Particle>& particles)
+      : m_particles(particles),
+        m_width(settings.marchingCubeWidth),
+        m_worldLen(Vector3(settings.cubeNum.x, settings.cubeNum.y,
+                           settings.cubeNum.z) *
+                   settings.cubeLen),
+        m_worldOffset(settings.pos),
+        m_num(XMINT3(std::ceil(m_worldLen.x / m_width),
+                     std::ceil(m_worldLen.y / m_width),
+                     std::ceil(m_worldLen.z / m_width))),
+        m_particle_radius(settings.h) {
     int size = m_num.x * m_num.y * m_num.z;
     m_voxel_grid.data.resize(size);
     m_voxel_grid.resolution = m_num;
     update_grid();
   }
-
-  ~MarchingCube();
 
   void march(std::vector<Vector3>& vertex);
 
@@ -49,10 +50,10 @@ class MarchingCube {
     }
   };
   VoxelGrid m_voxel_grid;
-  std::vector<Particle>& m_particles;
+  const std::vector<Particle>& m_particles;
+  float m_width;
   Vector3 m_worldLen;
   Vector3 m_worldOffset;
   XMINT3 m_num;
   float m_particle_radius;
-  float m_width;
 };

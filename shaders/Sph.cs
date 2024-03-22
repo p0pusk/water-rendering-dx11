@@ -81,9 +81,9 @@ void CheckBoundary(in uint index)
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
-    if (particles[index].position.x > -h + worldPos.x + 1.5f * len.x)
+    if (particles[index].position.x > -h + worldPos.x + len.x)
     {
-        particles[index].position.x = -particles[index].position.x + 2 * (-h + worldPos.x + 1.5f * len.x);
+        particles[index].position.x = -particles[index].position.x + 2 * (-h + worldPos.x + len.x);
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
@@ -124,7 +124,7 @@ void update(in uint startIndex, in uint endIndex)
                         while (hash == particles[index].hash && index < endIndex)
                         {
                             float d = distance(particles[index].position, particles[p].position);
-                            if (d * d < h2)
+                            if (d < h)
                             {
                                 particles[p].density += mass * poly6 * pow(h2 - d * d, 3);
                             }
@@ -169,7 +169,7 @@ void update(in uint startIndex, in uint endIndex)
                         {
                             float d = distance(particles[p].position, particles[index].position);
                             float3 dir = normalize(particles[p].position - particles[index].position);
-                            if (isnan(dir).x || isnan(dir).y || isnan(dir).z)
+                            if (d == 0.f)
                             {
                                 dir = float3(0, 0, 0);
                             }
@@ -203,11 +203,10 @@ void update(in uint startIndex, in uint endIndex)
 
 
 [numthreads(64, 1, 1)]
-
 void cs(uint3 globalThreadId : SV_DispatchThreadID)
 {
     int partitionSize = round(particlesNum / 64.0f + 0.5f);
-    if (globalThreadId.x == 0)
+    if (globalThreadId.x == 0 && globalThreadId.y == 0 && globalThreadId.z == 0)
     {
         CreateTable();
     }

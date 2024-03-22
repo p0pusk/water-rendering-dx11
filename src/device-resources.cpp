@@ -1,15 +1,19 @@
-#include "dx-controller.h"
+#include "device-resources.h"
 
-HRESULT DXController::Init(const HWND& hWnd) {
+#include <cassert>
+#include <exception>
+
+HRESULT DX::DeviceResources::Init(const HWND& hWnd) {
   HRESULT result;
 
   // Create a DirectX graphics interface factory.
   IDXGIFactory* pFactory = nullptr;
   result = CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory);
+  assert(SUCCEEDED(result));
 
   // Select hardware adapter
   IDXGIAdapter* pSelectedAdapter = nullptr;
-  if (SUCCEEDED(result)) {
+  {
     IDXGIAdapter* pAdapter = nullptr;
     UINT adapterIdx = 0;
     while (SUCCEEDED(pFactory->EnumAdapters(adapterIdx, &pAdapter))) {
@@ -26,14 +30,11 @@ HRESULT DXController::Init(const HWND& hWnd) {
       adapterIdx++;
     }
   }
-  if (FAILED(result)) {
-    throw std::runtime_error("Failed to select hardware adapter");
-  }
 
   // Create DirectX 11 device
   D3D_FEATURE_LEVEL level;
   D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0};
-  if (SUCCEEDED(result)) {
+  {
     UINT flags = 0;
 #ifdef _DEBUG
     flags |= D3D11_CREATE_DEVICE_DEBUG;
@@ -46,7 +47,7 @@ HRESULT DXController::Init(const HWND& hWnd) {
   }
 
   // Create swapchain
-  if (SUCCEEDED(result)) {
+  {
     RECT rc;
     GetClientRect(hWnd, &rc);
     m_width = rc.right - rc.left;
@@ -70,18 +71,16 @@ HRESULT DXController::Init(const HWND& hWnd) {
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
     swapChainDesc.Flags = 0;
 
-    result =
-        pFactory->CreateSwapChain(m_pDevice, &swapChainDesc, &m_pSwapChain);
-  }
-
-  if (FAILED(result)) {
-    throw std::runtime_error("Failed to create swapchain");
+    result = pFactory->CreateSwapChain(m_pDevice.Get(), &swapChainDesc,
+                                       &m_pSwapChain);
+    assert(SUCCEEDED(result));
   }
 
   result = SetupBackBuffer();
+  assert(SUCCEEDED(result));
 
   // CCW culling rasterizer state
-  if (SUCCEEDED(result)) {
+  {
     D3D11_RASTERIZER_DESC desc = {};
     desc.AntialiasedLineEnable = FALSE;
     desc.FillMode = D3D11_FILL_SOLID;
@@ -97,13 +96,12 @@ HRESULT DXController::Init(const HWND& hWnd) {
     result = m_pDevice->CreateRasterizerState(&desc, &m_pRasterizerState);
 
     assert(SUCCEEDED(result));
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pRasterizerState, "RasterizerState");
-    }
+    result = SetResourceName(m_pRasterizerState.Get(), "RasterizerState");
+    assert(SUCCEEDED(result));
   }
 
   // Create blend states
-  if (SUCCEEDED(result)) {
+  {
     D3D11_BLEND_DESC desc = {};
     desc.AlphaToCoverageEnable = FALSE;
     desc.IndependentBlendEnable = FALSE;
@@ -119,20 +117,18 @@ HRESULT DXController::Init(const HWND& hWnd) {
     desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
 
     result = m_pDevice->CreateBlendState(&desc, &m_pTransBlendState);
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pTransBlendState, "TransBlendState");
-    }
-    if (SUCCEEDED(result)) {
-      desc.RenderTarget[0].BlendEnable = FALSE;
-      result = m_pDevice->CreateBlendState(&desc, &m_pOpaqueBlendState);
-    }
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pOpaqueBlendState, "OpaqueBlendState");
-    }
+    assert(SUCCEEDED(result));
+    result = SetResourceName(m_pTransBlendState.Get(), "TransBlendState");
+    assert(SUCCEEDED(result));
+    desc.RenderTarget[0].BlendEnable = FALSE;
+    result = m_pDevice->CreateBlendState(&desc, &m_pOpaqueBlendState);
+    assert(SUCCEEDED(result));
+    result = SetResourceName(m_pOpaqueBlendState.Get(), "OpaqueBlendState");
+    assert(SUCCEEDED(result));
   }
 
   // Create reverse depth state
-  if (SUCCEEDED(result)) {
+  {
     D3D11_DEPTH_STENCIL_DESC desc = {};
     desc.DepthEnable = TRUE;
     desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
@@ -140,14 +136,14 @@ HRESULT DXController::Init(const HWND& hWnd) {
     desc.StencilEnable = FALSE;
 
     result = m_pDevice->CreateDepthStencilState(&desc, &m_pDepthState);
+    assert(SUCCEEDED(result));
 
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pDepthState, "DepthState");
-    }
+    result = SetResourceName(m_pDepthState.Get(), "DepthState");
+    assert(SUCCEEDED(result));
   }
 
   // Create reverse transparent depth state
-  if (SUCCEEDED(result)) {
+  {
     D3D11_DEPTH_STENCIL_DESC desc = {};
     desc.DepthEnable = TRUE;
     desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
@@ -155,12 +151,12 @@ HRESULT DXController::Init(const HWND& hWnd) {
     desc.StencilEnable = FALSE;
 
     result = m_pDevice->CreateDepthStencilState(&desc, &m_pTransDepthState);
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pTransDepthState, "TransDepthState");
-    }
+    assert(SUCCEEDED(result));
+    result = SetResourceName(m_pTransDepthState.Get(), "TransDepthState");
+    assert(SUCCEEDED(result));
   }
 
-  if (SUCCEEDED(result)) {
+  {
     D3D11_SAMPLER_DESC desc = {};
 
     // desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -178,6 +174,7 @@ HRESULT DXController::Init(const HWND& hWnd) {
         desc.BorderColor[3] = 1.0f;
 
     result = m_pDevice->CreateSamplerState(&desc, &m_pSampler);
+    assert(SUCCEEDED(result));
   }
 
   SAFE_RELEASE(pSelectedAdapter);
@@ -185,10 +182,14 @@ HRESULT DXController::Init(const HWND& hWnd) {
 
   assert(SUCCEEDED(result));
 
+#ifdef _DEBUG
+  // result = DXGIGetDebugInterface(0, &m_debugDev);
+#endif  // _DEBUG
+
   return SUCCEEDED(result);
 }
 
-bool DXController::Resize(UINT w, UINT h) {
+bool DX::DeviceResources::Resize(UINT w, UINT h) {
   if (w != m_width || h != m_height) {
     SAFE_RELEASE(m_pBackBufferRTV);
     SAFE_RELEASE(m_pDepthBuffer);
@@ -210,7 +211,118 @@ bool DXController::Resize(UINT w, UINT h) {
   return true;
 }
 
-HRESULT DXController::SetupBackBuffer() {
+HRESULT DX::DeviceResources::CompileAndCreateShader(
+    const std::wstring& path, ID3D11DeviceChild** ppShader,
+    const std::vector<std::string>& defines, ID3DBlob** ppCode) {
+  // Try to load shader's source code first
+  FILE* pFile = nullptr;
+  _wfopen_s(&pFile, path.c_str(), L"rb");
+  assert(pFile != nullptr);
+  if (pFile == nullptr) {
+    return E_FAIL;
+  }
+
+  fseek(pFile, 0, SEEK_END);
+  long long size = _ftelli64(pFile);
+  fseek(pFile, 0, SEEK_SET);
+
+  std::vector<char> data;
+  data.resize(size + 1);
+
+  size_t rd = fread(data.data(), 1, size, pFile);
+  assert(rd == (size_t)size);
+
+  fclose(pFile);
+
+  // Determine shader's type
+  std::wstring ext = Extension(path);
+
+  std::string entryPoint = "";
+  std::string platform = "";
+
+  if (ext == L"vs") {
+    entryPoint = "vs";
+    platform = "vs_5_0";
+  } else if (ext == L"ps") {
+    entryPoint = "ps";
+    platform = "ps_5_0";
+  } else if (ext == L"cs") {
+    entryPoint = "cs";
+    platform = "cs_5_0";
+  }
+
+  // Setup flags
+  UINT flags1 = 0;
+#ifdef _DEBUG
+  flags1 |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif  // _DEBUG
+
+  D3DInclude includeHandler;
+
+  std::vector<D3D_SHADER_MACRO> shaderDefines;
+  shaderDefines.resize(defines.size() + 1);
+  for (int i = 0; i < defines.size(); i++) {
+    shaderDefines[i].Name = defines[i].c_str();
+    shaderDefines[i].Definition = "";
+  }
+  shaderDefines.back().Name = nullptr;
+  shaderDefines.back().Definition = nullptr;
+
+  // Try to compile
+  ID3DBlob* pCode = nullptr;
+  ID3DBlob* pErrMsg = nullptr;
+  HRESULT result =
+      D3DCompile(data.data(), data.size(), WCSToMBS(path).c_str(),
+                 shaderDefines.data(), &includeHandler, entryPoint.c_str(),
+                 platform.c_str(), flags1, 0, &pCode, &pErrMsg);
+  if (!SUCCEEDED(result) && pErrMsg != nullptr) {
+    OutputDebugStringA((const char*)pErrMsg->GetBufferPointer());
+  }
+  assert(SUCCEEDED(result));
+  SAFE_RELEASE(pErrMsg);
+
+  // Create shader itself if anything else is OK
+  if (SUCCEEDED(result)) {
+    if (ext == L"vs") {
+      ID3D11VertexShader* pVertexShader = nullptr;
+      result = m_pDevice->CreateVertexShader(pCode->GetBufferPointer(),
+                                             pCode->GetBufferSize(), nullptr,
+                                             &pVertexShader);
+      if (SUCCEEDED(result)) {
+        *ppShader = pVertexShader;
+      }
+    } else if (ext == L"ps") {
+      ID3D11PixelShader* pPixelShader = nullptr;
+      result = m_pDevice->CreatePixelShader(pCode->GetBufferPointer(),
+                                            pCode->GetBufferSize(), nullptr,
+                                            &pPixelShader);
+      if (SUCCEEDED(result)) {
+        *ppShader = pPixelShader;
+      }
+    } else if (ext == L"cs") {
+      ID3D11ComputeShader* pComputeShader = nullptr;
+      result = m_pDevice->CreateComputeShader(pCode->GetBufferPointer(),
+                                              pCode->GetBufferSize(), nullptr,
+                                              &pComputeShader);
+      if (SUCCEEDED(result)) {
+        *ppShader = pComputeShader;
+      }
+    }
+  }
+  if (SUCCEEDED(result)) {
+    result = SetResourceName(*ppShader, WCSToMBS(path).c_str());
+  }
+
+  if (ppCode) {
+    *ppCode = pCode;
+  } else {
+    SAFE_RELEASE(pCode);
+  }
+
+  return result;
+}
+
+HRESULT DX::DeviceResources::SetupBackBuffer() {
   ID3D11Texture2D* pBackBuffer = nullptr;
   HRESULT result = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
                                            (LPVOID*)&pBackBuffer);
@@ -237,16 +349,16 @@ HRESULT DXController::SetupBackBuffer() {
 
     result = m_pDevice->CreateTexture2D(&desc, nullptr, &m_pDepthBuffer);
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pDepthBuffer, "DepthBuffer");
+      result = SetResourceName(m_pDepthBuffer.Get(), "DepthBuffer");
     }
   }
 
   if (SUCCEEDED(result)) {
-    result = m_pDevice->CreateDepthStencilView(m_pDepthBuffer, nullptr,
+    result = m_pDevice->CreateDepthStencilView(m_pDepthBuffer.Get(), nullptr,
                                                &m_pDepthBufferDSV);
 
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pDepthBuffer, "DepthBufferView");
+      result = SetResourceName(m_pDepthBuffer.Get(), "DepthBufferView");
     }
   }
 

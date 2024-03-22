@@ -6,6 +6,7 @@
 HRESULT Water::Init() { return Init(5); }
 
 HRESULT Water::Init(UINT boxWidth) {
+  auto pDevice = m_pDeviceResources->GetDevice();
   HeightField::Props p;
   p.gridSize = XMINT2(boxWidth, boxWidth);
   p.pos = Vector3(0 - boxWidth / 2 * p.w, 0, 0 - boxWidth / 2 * p.w);
@@ -36,7 +37,7 @@ HRESULT Water::Init(UINT boxWidth) {
     data.SysMemPitch = (UINT)(m_vertecies.size() * sizeof(Vector3));
     data.SysMemSlicePitch = 0;
 
-    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pVertexBuffer);
+    result = pDevice->CreateBuffer(&desc, &data, &m_pVertexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
       result = SetResourceName(m_pVertexBuffer, "ParticleVertexBuffer");
@@ -58,7 +59,7 @@ HRESULT Water::Init(UINT boxWidth) {
     data.SysMemPitch = (UINT)(m_indecies.size() * sizeof(UINT16));
     data.SysMemSlicePitch = 0;
 
-    result = m_pDXC->m_pDevice->CreateBuffer(&desc, &data, &m_pIndexBuffer);
+    result = pDevice->CreateBuffer(&desc, &data, &m_pIndexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
       result = SetResourceName(m_pIndexBuffer, "ParticleIndexBuffer");
@@ -67,17 +68,17 @@ HRESULT Water::Init(UINT boxWidth) {
 
   ID3DBlob *pSmallSphereVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
-    result = CompileAndCreateShader(L"../shaders/MarchingCubes.vs",
+    result = m_pDeviceResources->CompileAndCreateShader(L"../shaders/MarchingCubes.vs",
                                     (ID3D11DeviceChild **)&m_pVertexShader, {},
                                     &pSmallSphereVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
-    result = CompileAndCreateShader(L"../shaders/MarchingCubes.ps",
+    result = m_pDeviceResources->CompileAndCreateShader(L"../shaders/MarchingCubes.ps",
                                     (ID3D11DeviceChild **)&m_pPixelShader);
   }
 
   if (SUCCEEDED(result)) {
-    result = m_pDXC->m_pDevice->CreateInputLayout(
+    result = pDevice->CreateInputLayout(
         InputDesc, ARRAYSIZE(InputDesc),
         pSmallSphereVertexShaderCode->GetBufferPointer(),
         pSmallSphereVertexShaderCode->GetBufferSize(), &m_pInputLayout);
@@ -92,19 +93,20 @@ HRESULT Water::Init(UINT boxWidth) {
 }
 
 void Water::Update(float dt) {
+  auto pContext = m_pDeviceResources->GetDeviceContext();
   m_heightfield->Update(dt);
 
   m_heightfield->GetRenderData(m_vertecies, m_indecies);
-  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pVertexBuffer, 0, nullptr,
+  pContext->UpdateSubresource(m_pVertexBuffer, 0, nullptr,
                                               m_vertecies.data(), 0, 0);
-  m_pDXC->m_pDeviceContext->UpdateSubresource(m_pIndexBuffer, 0, nullptr,
+  pContext->UpdateSubresource(m_pIndexBuffer, 0, nullptr,
                                               m_indecies.data(), 0, 0);
 }
 
 void Water::Render(ID3D11Buffer *pSceneBuffer) {
-  auto &pContext = m_pDXC->m_pDeviceContext;
-  pContext->OMSetDepthStencilState(m_pDXC->m_pTransDepthState, 0);
-  pContext->OMSetBlendState(m_pDXC->m_pTransBlendState, nullptr, 0xffffffff);
+  auto pContext = m_pDeviceResources->GetDeviceContext();
+  pContext->OMSetDepthStencilState(m_pDeviceResources->GetDepthState(), 0);
+  pContext->OMSetBlendState(m_pDeviceResources->GetTransBlendState(), nullptr, 0xffffffff);
 
   pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
   ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};

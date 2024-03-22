@@ -4,15 +4,15 @@
 
 #include "primitive.h"
 
-class CubeMap : public GeometricPrimitive {
+class CubeMap : public ::Primitive {
  public:
   struct SphereGeomBuffer {
     DirectX::XMMATRIX m;
     float size;
   };
 
-  CubeMap(std::shared_ptr<DXController>& pDXController)
-      : GeometricPrimitive(pDXController),
+  CubeMap(std::shared_ptr<DX::DeviceResources> pDeviceResources)
+      : Primitive(pDeviceResources),
         m_pCubemapView(nullptr),
         m_pGeomBuffer(nullptr){};
 

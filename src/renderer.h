@@ -6,13 +6,14 @@
 #include <minwindef.h>
 #include <winnt.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "cubemap.h"
-#include "dx-controller.h"
+#include "device-resources.h"
 #include "primitive.h"
-#include "sph.h"
+#include "simulationRenderer.h"
 #include "surface.h"
 #include "water.h"
 
@@ -21,10 +22,7 @@ class Renderer {
 
  public:
   Renderer()
-      : m_pDXController(nullptr),
-        m_pSceneBuffer(nullptr),
-        m_prevUSec(0),
-        m_prevSimUSec(0),
+      : m_pSceneBuffer(nullptr),
         m_rbPressed(false),
         m_prevMouseX(0),
         m_prevMouseY(0),
@@ -34,7 +32,9 @@ class Renderer {
         m_rightDelta(0.0),
         m_showLightBulbs(true),
         m_useNormalMaps(true),
-        m_showNormals(false) {}
+        m_showNormals(false),
+        m_prevUSec(0),
+        m_prevSimUSec(0) {}
 
   ~Renderer() { SAFE_RELEASE(m_pSceneBuffer); }
 
@@ -83,11 +83,11 @@ class Renderer {
   void TermScene();
 
  private:
-  std::shared_ptr<DXController> m_pDXController;
+  std::shared_ptr<DX::DeviceResources> m_pDeviceResources;
 
   Surface* m_pSurface;
   Water* m_pWater;
-  SPH* m_pSph;
+  std::unique_ptr<SimRenderer> m_pSimulationRenderer;
   std::unique_ptr<CubeMap> m_pCubeMap;
 
   SceneBuffer m_sceneBuffer;
