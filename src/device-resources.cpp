@@ -3,6 +3,8 @@
 #include <cassert>
 #include <exception>
 
+#include "pch.h"
+
 HRESULT DX::DeviceResources::Init(const HWND& hWnd) {
   HRESULT result;
 
@@ -191,9 +193,9 @@ HRESULT DX::DeviceResources::Init(const HWND& hWnd) {
 
 bool DX::DeviceResources::Resize(UINT w, UINT h) {
   if (w != m_width || h != m_height) {
-    SAFE_RELEASE(m_pBackBufferRTV);
-    SAFE_RELEASE(m_pDepthBuffer);
-    SAFE_RELEASE(m_pDepthBufferDSV);
+    m_pBackBufferRTV->Release();
+    m_pDepthBuffer->Release();
+    m_pDepthBufferDSV->Release();
 
     HRESULT result =
         m_pSwapChain->ResizeBuffers(2, w, h, DXGI_FORMAT_R8G8B8A8_UNORM, 0);
@@ -327,8 +329,8 @@ HRESULT DX::DeviceResources::SetupBackBuffer() {
   HRESULT result = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
                                            (LPVOID*)&pBackBuffer);
   if (SUCCEEDED(result)) {
-    result =
-        m_pDevice->CreateRenderTargetView(pBackBuffer, NULL, &m_pBackBufferRTV);
+    result = m_pDevice->CreateRenderTargetView(pBackBuffer, NULL,
+                                               m_pBackBufferRTV.GetAddressOf());
   }
 
   SAFE_RELEASE(pBackBuffer);
@@ -347,15 +349,16 @@ HRESULT DX::DeviceResources::SetupBackBuffer() {
     desc.Width = m_width;
     desc.MipLevels = 1;
 
-    result = m_pDevice->CreateTexture2D(&desc, nullptr, &m_pDepthBuffer);
+    result = m_pDevice->CreateTexture2D(&desc, nullptr,
+                                        m_pDepthBuffer.GetAddressOf());
     if (SUCCEEDED(result)) {
       result = SetResourceName(m_pDepthBuffer.Get(), "DepthBuffer");
     }
   }
 
   if (SUCCEEDED(result)) {
-    result = m_pDevice->CreateDepthStencilView(m_pDepthBuffer.Get(), nullptr,
-                                               &m_pDepthBufferDSV);
+    result = m_pDevice->CreateDepthStencilView(
+        m_pDepthBuffer.Get(), nullptr, m_pDepthBufferDSV.GetAddressOf());
 
     if (SUCCEEDED(result)) {
       result = SetResourceName(m_pDepthBuffer.Get(), "DepthBufferView");

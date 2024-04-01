@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <exception>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <vector>
 
 #include "SimpleMath.h"
 #include "particle.h"
+#include "pch.h"
 
 HRESULT SimRenderer::Init() {
   HRESULT result = S_OK;
@@ -101,7 +103,7 @@ HRESULT SimRenderer::InitSph() {
     data.pSysMem = m_hash_table.data();
 
     hr = m_pDeviceResources->CreateStructuredBuffer<UINT>(
-        TABLE_SIZE, D3D11_USAGE_DEFAULT, NULL, &data, "HashBuffer",
+        TABLE_SIZE, D3D11_USAGE_DEFAULT, 0, &data, "HashBuffer",
         &m_pHashBuffer);
     DX::ThrowIfFailed(hr);
   }
@@ -259,8 +261,8 @@ HRESULT SimRenderer::InitMarching() {
 
   HRESULT result = S_OK;
 
-  Vector3 len = Vector3(m_settings.cubeNum.x + 2, m_settings.cubeNum.y + 2,
-                        m_settings.cubeNum.z + 2) *
+  Vector3 len = Vector3(m_settings.cubeNum.x + 1, m_settings.cubeNum.y + 1,
+                        m_settings.cubeNum.z + 1) *
                 m_settings.cubeLen;
 
   UINT cubeNums =
@@ -275,7 +277,7 @@ HRESULT SimRenderer::InitMarching() {
     desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     desc.MiscFlags = 0;
-    desc.StructureByteStride = 0;
+    desc.StructureByteStride = sizeof(Vector3);
 
     result = pDevice->CreateBuffer(&desc, nullptr, &m_pMarchingVertexBuffer);
     DX::ThrowIfFailed(result);
@@ -289,11 +291,11 @@ HRESULT SimRenderer::InitMarching() {
   {
     D3D11_BUFFER_DESC desc = {};
     desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.ByteWidth = max_n * sizeof(Vector3);
-    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    desc.ByteWidth = max_n * sizeof(MarchingOutBuffer);
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    desc.StructureByteStride = sizeof(Vector3);
+    desc.StructureByteStride = sizeof(MarchingOutBuffer);
 
     result = pDevice->CreateBuffer(&desc, nullptr, &m_pMarchingOutBuffer);
     DX::ThrowIfFailed(result);
@@ -304,8 +306,36 @@ HRESULT SimRenderer::InitMarching() {
   // create out buffer uav
   {
     result = m_pDeviceResources->CreateBufferUAV(
-        m_pMarchingOutBuffer.Get(), max_n, D3D11_BUFFER_UAV_FLAG_COUNTER,
+        m_pMarchingOutBuffer.Get(), max_n, D3D11_BUFFER_UAV_FLAG_APPEND,
         "MarchingOutUAV", &m_pMarchingOutBufferUAV);
+    DX::ThrowIfFailed(result);
+  }
+
+  // create out buffer srv
+  {
+    result = m_pDeviceResources->CreateBufferSRV(m_pMarchingOutBuffer.Get(),
+                                                 max_n, "MarchingOutSRV",
+                                                 &m_pMarchingOutBufferSRV);
+    DX::ThrowIfFailed(result);
+  }
+
+  // create counter buffer
+  {
+    D3D11_BUFFER_DESC desc = {};
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.ByteWidth = sizeof(MarchingIndirectBuffer);
+    desc.BindFlags = 0;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
+    desc.StructureByteStride = sizeof(MarchingIndirectBuffer);
+
+    D3D11_SUBRESOURCE_DATA data = {};
+    data.pSysMem = &m_MarchingIndirectBuffer;
+    data.SysMemPitch = sizeof(MarchingIndirectBuffer);
+
+    result = pDevice->CreateBuffer(&desc, &data, &m_pCountBuffer);
+    DX::ThrowIfFailed(result);
+    result = SetResourceName(m_pCountBuffer.Get(), "CountBuffer");
     DX::ThrowIfFailed(result);
   }
 
@@ -327,17 +357,9 @@ HRESULT SimRenderer::InitMarching() {
 
   // create VoxelGrid UAV
   {
-    D3D11_UNORDERED_ACCESS_VIEW_DESC desc = {};
-    desc.Format = DXGI_FORMAT_UNKNOWN;
-    desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
-    desc.Buffer.FirstElement = 0;
-    desc.Buffer.NumElements = cubeNums;
-    desc.Buffer.Flags = 0;
-
-    result = pDevice->CreateUnorderedAccessView(m_pVoxelGridBuffer.Get(), &desc,
-                                                &m_pVoxelGridBufferUAV);
-    DX::ThrowIfFailed(result);
-    result = SetResourceName(m_pVoxelGridBufferUAV.Get(), "VoxelGridUAV");
+    result = m_pDeviceResources->CreateBufferUAV(
+        m_pVoxelGridBuffer.Get(), cubeNums, (D3D11_BUFFER_UAV_FLAG)0,
+        "VoxelGridUAV", &m_pVoxelGridBufferUAV);
     DX::ThrowIfFailed(result);
   }
 
@@ -349,6 +371,16 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingVertexShader.Get(),
                            "MarchingCubesVertexShader");
+  DX::ThrowIfFailed(result);
+
+  ID3DBlob* pVertexShaderCodeIndirect = nullptr;
+  result = m_pDeviceResources->CompileAndCreateShader(
+      L"../shaders/MarchingCubesIndirect.vs",
+      (ID3D11DeviceChild**)m_pMarchingIndirectVertexShader.GetAddressOf(), {},
+      &pVertexShaderCodeIndirect);
+  DX::ThrowIfFailed(result);
+  result = SetResourceName(m_pMarchingIndirectVertexShader.Get(),
+                           "MarchingCubesIndirectVertexShader");
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
@@ -363,16 +395,23 @@ HRESULT SimRenderer::InitMarching() {
       L"../shaders/MarchingCubes.cs",
       (ID3D11DeviceChild**)m_pMarchingComputeShader.GetAddressOf());
   DX::ThrowIfFailed(result);
-  result = SetResourceName(m_pMarchingPixelShader.Get(),
+  result = SetResourceName(m_pMarchingComputeShader.Get(),
                            "MarchingCubesComputeShader");
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
       L"../shaders/MarchingPreprocess.cs",
-      (ID3D11DeviceChild**)m_pClearBufferCS.GetAddressOf());
+      (ID3D11DeviceChild**)m_pMarchingPreprocessCS.GetAddressOf());
   DX::ThrowIfFailed(result);
-  result = SetResourceName(m_pMarchingPixelShader.Get(),
+  result = SetResourceName(m_pMarchingPreprocessCS.Get(),
                            "MarchingCubesPreprocessShader");
+  DX::ThrowIfFailed(result);
+
+  result = m_pDeviceResources->CompileAndCreateShader(
+      L"../shaders/MarchingClearVoxel.cs",
+      (ID3D11DeviceChild**)m_pMarchingClearCS.GetAddressOf());
+  DX::ThrowIfFailed(result);
+  result = SetResourceName(m_pMarchingClearCS.Get(), "MarchingCubesClearCS");
   DX::ThrowIfFailed(result);
 
   result = pDevice->CreateInputLayout(
@@ -384,6 +423,7 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   SAFE_RELEASE(pVertexShaderCode);
+  SAFE_RELEASE(pVertexShaderCodeIndirect);
 
   return result;
 }
@@ -429,8 +469,8 @@ HRESULT SimRenderer::UpdatePhysGPU() {
   pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
   pContext->Dispatch(groupNumber, 1, 1);
 
-  ID3D11UnorderedAccessView* nullUavBuffers[1] = {NULL};
-  pContext->CSSetUnorderedAccessViews(0, 1, nullUavBuffers, nullptr);
+  ID3D11UnorderedAccessView* nullUavBuffers[2] = {NULL, NULL};
+  pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
 
   return result;
 }
@@ -456,38 +496,49 @@ void SimRenderer::Update(float dt) {
   } else {
     UpdatePhysGPU();
     if (m_settings.marching) {
-      Vector3 len = Vector3(m_settings.cubeNum.x + 2, m_settings.cubeNum.y + 2,
-                            m_settings.cubeNum.z + 2) *
+      Vector3 len = Vector3(m_settings.cubeNum.x + 1, m_settings.cubeNum.y + 1,
+                            m_settings.cubeNum.z + 1) *
                     m_settings.cubeLen;
 
       UINT cubeNums =
           len.x * len.y * len.z / pow(m_settings.marchingCubeWidth, 3) + 0.5f;
-      UINT max_n = cubeNums * 16;
 
       UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
 
       ID3D11Buffer* cb[1] = {m_pSphCB.Get()};
-      ID3D11UnorderedAccessView* uavBuffers[3] = {
-          m_pSphBufferUAV.Get(), m_pVoxelGridBufferUAV.Get(),
-          m_pMarchingOutBufferUAV.Get()};
-
       pContext->CSSetConstantBuffers(0, 1, cb);
 
-      const UINT pCounters1[3] = {-1, -1, -1};
+      ID3D11UnorderedAccessView* uavBuffers1[1] = {m_pVoxelGridBufferUAV.Get()};
+      pContext->CSSetUnorderedAccessViews(0, 1, uavBuffers1, nullptr);
 
-      pContext->CSSetUnorderedAccessViews(0, 3, uavBuffers, pCounters1);
-      pContext->CSSetShader(m_pClearBufferCS.Get(), nullptr, 0);
+      pContext->CSSetShader(m_pMarchingClearCS.Get(), nullptr, 0);
       pContext->Dispatch(groupNumber, 1, 1);
 
-      const UINT pCounters2[3] = {0, 0, 0};
-      pContext->CSSetUnorderedAccessViews(0, 3, uavBuffers, pCounters2);
+      ID3D11ShaderResourceView* srvBuffers[1] = {m_pSphBufferSRV.Get()};
+      pContext->CSSetShaderResources(0, 1, srvBuffers);
 
+      pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
+      groupNumber = DivUp(m_num_particles, m_settings.blockSize);
+      pContext->Dispatch(groupNumber, 1, 1);
+
+      const UINT pCounters2[2] = {0, 0};
+      ID3D11UnorderedAccessView* uavBuffers2[2] = {
+          m_pVoxelGridBufferUAV.Get(), m_pMarchingOutBufferUAV.Get()};
+
+      pContext->CSSetUnorderedAccessViews(0, 2, uavBuffers2, pCounters2);
+
+      groupNumber = DivUp(cubeNums, m_settings.blockSize);
       pContext->CSSetShader(m_pMarchingComputeShader.Get(), nullptr, 0);
 
       pContext->Dispatch(groupNumber, 1, 1);
 
-      pContext->CopyResource(m_pMarchingVertexBuffer.Get(),
-                             m_pMarchingOutBuffer.Get());
+      ID3D11UnorderedAccessView* nullUavBuffers[2] = {NULL, NULL};
+      ID3D11ShaderResourceView* nullSrvs[1] = {NULL};
+      pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
+      pContext->CSSetShaderResources(0, 1, nullSrvs);
+
+      pContext->CopyStructureCount(m_pCountBuffer.Get(), sizeof(UINT),
+                                   m_pMarchingOutBufferUAV.Get());
     }
   }
 }
@@ -507,27 +558,29 @@ void SimRenderer::RenderMarching(ID3D11Buffer* pSceneBuffer) {
   pContext->OMSetDepthStencilState(pTransDepthState, 0);
   pContext->OMSetBlendState(pTransBlendState, nullptr, 0xffffffff);
 
-  ID3D11Buffer* vertexBuffers[] = {m_pMarchingVertexBuffer.Get()};
-  UINT strides[] = {sizeof(Vector3)};
-  UINT offsets[] = {0};
-  pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
-
-  pContext->IASetInputLayout(m_pMarchingInputLayout.Get());
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  pContext->VSSetShader(m_pMarchingVertexShader.Get(), nullptr, 0);
   pContext->PSSetShader(m_pMarchingPixelShader.Get(), nullptr, 0);
   ID3D11Buffer* cbuffers[] = {pSceneBuffer};
   pContext->VSSetConstantBuffers(0, 1, cbuffers);
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
 
-  Vector3 len = Vector3(m_settings.cubeNum.x + 2, m_settings.cubeNum.y + 2,
-                        m_settings.cubeNum.z + 2) *
-                m_settings.cubeLen;
-
-  UINT cubeNums =
-      std::ceil(len.x * len.y * len.z / pow(m_settings.marchingCubeWidth, 3));
-  UINT max_n = cubeNums * 16;
-  pContext->Draw(max_n, 0);
+  if (m_settings.cpu) {
+    ID3D11Buffer* vertexBuffers[] = {m_pMarchingVertexBuffer.Get()};
+    UINT strides[] = {sizeof(Vector3)};
+    UINT offsets[] = {0};
+    pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
+    pContext->IASetInputLayout(m_pMarchingInputLayout.Get());
+    pContext->VSSetShader(m_pMarchingVertexShader.Get(), nullptr, 0);
+    pContext->Draw(m_vertex.size(), 0);
+  } else {
+    pContext->IASetInputLayout(nullptr);
+    pContext->VSSetShader(m_pMarchingIndirectVertexShader.Get(), nullptr, 0);
+    ID3D11ShaderResourceView* srvs = {m_pMarchingOutBufferSRV.Get()};
+    pContext->VSSetShaderResources(0, 1, &srvs);
+    pContext->DrawInstancedIndirect(m_pCountBuffer.Get(), 0);
+    ID3D11ShaderResourceView* nullSRV[1] = {NULL};
+    pContext->VSSetShaderResources(0, 1, nullSRV);
+  }
 }
 
 void SimRenderer::RenderSpheres(ID3D11Buffer* pSceneBuffer) {

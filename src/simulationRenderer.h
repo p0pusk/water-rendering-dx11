@@ -19,6 +19,20 @@
 using namespace DirectX::SimpleMath;
 using namespace DirectX;
 
+struct MarchingIndirectBuffer {
+  UINT vertexPerInst = 3;
+  UINT counter;
+  UINT startIndexLocation = 0;
+  int baseVertexLocation = 0;
+  UINT startInstanceLocation = 0;
+};
+
+struct MarchingOutBuffer {
+  Vector3 v1;
+  Vector3 v2;
+  Vector3 v3;
+};
+
 struct MarchingVertex {
   Vector3 pos;
   Vector3 normal;
@@ -79,19 +93,25 @@ class SimRenderer : Primitive {
   ComPtr<ID3D11ComputeShader> m_pTableCS;
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
-  ComPtr<ID3D11ComputeShader> m_pClearBufferCS;
+  ComPtr<ID3D11ComputeShader> m_pMarchingPreprocessCS;
+  ComPtr<ID3D11ComputeShader> m_pMarchingClearCS;
   ComPtr<ID3D11VertexShader> m_pMarchingVertexShader;
+  ComPtr<ID3D11VertexShader> m_pMarchingIndirectVertexShader;
   ComPtr<ID3D11Buffer> m_pMarchingOutBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pMarchingOutBufferUAV;
+  ComPtr<ID3D11ShaderResourceView> m_pMarchingOutBufferSRV;
   ComPtr<ID3D11PixelShader> m_pMarchingPixelShader;
   ComPtr<ID3D11ComputeShader> m_pMarchingComputeShader;
   ComPtr<ID3D11Buffer> m_pVoxelGridBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pVoxelGridBufferUAV;
+  ComPtr<ID3D11Buffer> m_pCountBuffer;
 
   ComPtr<ID3D11InputLayout> m_pMarchingInputLayout;
+  ComPtr<ID3D11InputLayout> m_pMarchingIndirectInputLayout;
 
   ComPtr<ID3D11Buffer> m_pSphDataBuffer;
   SphCB m_sphCB;
+  MarchingIndirectBuffer m_MarchingIndirectBuffer;
   ComPtr<ID3D11Buffer> m_pSphCB;
   ComPtr<ID3D11UnorderedAccessView> m_pSphBufferUAV;
   ComPtr<ID3D11Buffer> m_pHashBuffer;

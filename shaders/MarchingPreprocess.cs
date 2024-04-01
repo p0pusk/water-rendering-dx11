@@ -1,19 +1,15 @@
 #include "../shaders/Sph.h"
 
-RWStructuredBuffer<Particle> particles : register(u0);
-RWStructuredBuffer<int> voxel_grid : register(u1);
-RWStructuredBuffer<float3> vertex : register(u2);
+StructuredBuffer<Particle> particles : register(t0);
+RWStructuredBuffer<int> voxel_grid : register(u0);
 
-bool check_collision(in float3 p)
+bool check_collision(in float3 p, in float3 v)
 {
-    float min_dist = marchingWidth + 0.001f;
-    for (int i = 0; i < particlesNum; i++)
+    float min_dist = h;
+    float d = distance(p, v);
+    if (d <= min_dist)
     {
-        float d = distance(p, particles[i].position);
-        if (d <= min_dist)
-        {
-            return true;
-        }
+        return true;
     }
     return false;
 }
@@ -24,21 +20,30 @@ void update_grid(uint start, uint end)
     {
         end = particlesNum;
     }
-    float3 len = cubeNum * cubeLen;
+    float3 len = (cubeNum + uint3(1, 1, 1)) * cubeLen;
     uint3 num = ceil(len / marchingWidth);
 
-    for (int i = start; i < end; i++)
+    for (int p = start; p < end; ++p)
     {
-        int radius = h / marchingWidth;
-        int3 localPos = (particles[i].position - worldPos) / marchingWidth;
-        for (int i = localPos.x - radius; i < num.x && i >= 0 && i <= localPos.x + radius; i++)
+        int3 localPos = round(particles[p].position / marchingWidth - worldPos);
+        int radius = ceil(h / 2 / marchingWidth);
+        for (int i = -radius; i <= radius; ++i)
         {
-            for (int j = localPos.y - radius; j < num.y && j >= 0 && j <= localPos.y + radius; j++)
+            for (int j = -radius; j <= radius; ++j)
             {
-                for (int k = localPos.z - radius; k < num.z && k >= 0 && k <= localPos.z + radius; k++)
+                for (int k = -radius; k <= radius; ++k)
                 {
-                    int index = i + (k * num.y + j) * num.x;
-                    voxel_grid[index] = check_collision(float3(i, j, k) * marchingWidth + worldPos);
+                    if (i + localPos.x < 0 || j + localPos.y < 0 || k + localPos.z < 0 ||
+                        i + localPos.x >= num.x || j + localPos.y >= num.y ||
+                        k + localPos.z >= num.z) {
+                      continue;
+                    }
+                    int index = i + localPos.x + ((k + localPos.z) * num.y + j + localPos.y) * num.x;
+
+                    if (!voxel_grid[index])
+                    {
+                      voxel_grid[index] = check_collision(float3(localPos.x + i, localPos.y + j, localPos.z + k) * marchingWidth + worldPos, particles[p].position);
+                    }
                 }
             }
         }
@@ -48,37 +53,9 @@ void update_grid(uint start, uint end)
 [numthreads(BLOCK_SIZE, 1, 1)]
 void cs(uint3 globalThreadId : SV_DispatchThreadID)
 {
-    uint size = vertex.IncrementCounter();
-
-    uint partition = ceil(size / GROUPS_NUM / BLOCK_SIZE);
+    // update grid
+    uint partition = ceil((float) particlesNum / BLOCK_SIZE / GROUPS_NUM);
     uint start = globalThreadId.x * partition;
     uint end = (globalThreadId.x + 1) * partition;
-    if (end < size)
-    {
-        end = size;
-    }
-
-    // clear vertex buffer
-    for (uint i = start; i < end; ++i)
-    {
-        vertex[i] = 0;
-    }
-    
-    // clear voxel grid
-    float3 len = cubeNum * cubeLen;
-    uint3 num = ceil(len / marchingWidth);
-    int grid_size = num.x * num.y * num.z;
-    partition = ceil((float) grid_size / BLOCK_SIZE / GROUPS_NUM);
-    start = globalThreadId.x * partition;
-    end = (globalThreadId.x + 1) * partition;
-    for (int i = start; i < end; ++i)
-    {
-        voxel_grid[i] = false;
-    }
-
-    // update grid
-    partition = ceil((float) particlesNum / BLOCK_SIZE / GROUPS_NUM);
-    start = globalThreadId.x * partition;
-    end = (globalThreadId.x + 1) * partition;
     update_grid(start, end);
 }

@@ -309,20 +309,25 @@ struct Edges
     int data[2];
 };
 
-RWStructuredBuffer<Particle> particles : register(u0);
-RWStructuredBuffer<int> voxel_grid : register(u1);
-RWStructuredBuffer<float3> vertex : register(u2);
-
-bool voxel_get(uint x, uint y, uint z)
+struct Triangle
 {
-    float3 len = cubeNum * cubeLen;
+    float3 v[3];
+};
+
+StructuredBuffer<Particle> particles : register(t0);
+RWStructuredBuffer<int> voxel_grid : register(u0);
+AppendStructuredBuffer<Triangle> triangles : register(u1);
+
+bool voxel_get(in uint x, in uint y, in uint z)
+{
+    float3 len = (cubeNum + uint3(1, 1, 1)) * cubeLen;
     uint3 num = ceil(len / marchingWidth);
     return voxel_grid[x + y * num.x + z * num.x * num.y];
 }
 
 
 
-Triangulation get_triangulations(uint x, uint y, uint z)
+Triangulation get_triangulations(in uint x, in uint y, in uint z)
 {
   /*
 
@@ -350,61 +355,73 @@ Triangulation get_triangulations(uint x, uint y, uint z)
     return TRIANGULATIONS[idx];
 }
 
+float3 get_point(in uint edge_index, in uint3 pos)
+{
+    Edges point_indecies = EDGES_TABLE[edge_index];
+    uint3 p1 = POINTS_TABLE[point_indecies.data[0]];
+    uint3 p2 = POINTS_TABLE[point_indecies.data[1]];
+
+    float3 worldP1 =
+        (p1 + pos) * marchingWidth + worldPos;
+    float3 worldP2 =
+        (p2 + pos) * marchingWidth + worldPos;
+
+    return (worldP1 + worldP2) / 2;
+}
+
 void march_cube(in uint3 pos)
 {
-    Triangulation trianglulation = get_triangulations(pos.x, pos.y, pos.z);
-    for (int i = 0; i < 15; i++)
+    Triangulation edges = get_triangulations(pos.x, pos.y, pos.z);
+    for (int i = 0; i < 15 && edges.data[i] != -1; i += 3)
     {
-        int edge_index = trianglulation.data[i];
-        if (edge_index < 0)
-        {
-            break;
-        }
-
-        Edges point_indecies = EDGES_TABLE[edge_index];
-        uint3 p1 = POINTS_TABLE[point_indecies.data[0]];
-        uint3 p2 = POINTS_TABLE[point_indecies.data[1]];
-
-        float3 worldP1 =
-        (float3(p1.x, p1.y, p1.z) + float3(pos.x, pos.y, pos.z)) * marchingWidth + worldPos;
-        float3 worldP2 =
-        (float3(p2.x, p2.y, p2.z) + float3(pos.x, pos.y, pos.z)) * marchingWidth + worldPos;
-
-        float3 final_point = (worldP1 + worldP2) / 2;
-        vertex[vertex.IncrementCounter()] = final_point;
+        Triangle res;
+        res.v[0] = get_point(edges.data[i], pos);
+        res.v[1] = get_point(edges.data[i + 1], pos);
+        res.v[2] = get_point(edges.data[i + 2], pos);
+        triangles.Append(res);
     }
-    return;
 }
 
 
-
-void march(in uint start, in uint end)
+void march(in uint index)
 {
-    float3 len = cubeNum * cubeLen;
+    float3 len = (cubeNum + 1) * cubeLen;
     uint3 num = ceil(len / marchingWidth);
+    uint x = index % num.x;
+    uint y = (index / num.x) % num.y;
+    uint z = (index / num.x) / num.y;
 
-    if (end > num.y - 1)
+    if (x >= num.x - 1)
     {
-        end = num.y - 1;
+        x = num.x - 2;
+    }
+    if (y >= num.y - 1)
+    {
+        y = num.y - 2;
+    }
+    if (z >= num.z - 1)
+    {
+        z = num.z - 2;
     }
 
-    for (int y = start; y < end; y++)
-    {
-        for (int x = 0; x < num.x - 1; x++)
-        {
-            for (int z = 0; z < num.z - 1; z++)
-            {
-                march_cube(uint3(x, y, z));
-            }
-        }
-    }
+    // if (voxel_grid[index]) {
+    //   Triangle res;
+    //   res.v[0] = float3(x, y, z) * marchingWidth;
+    //   res.v[1] = float3(x, y, z) * marchingWidth;
+    //   res.v[2] = float3(x, y, z) * marchingWidth;
+    //   triangles.Append(res);
+    // }
+    march_cube(uint3(x, y, z));
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]
 void cs(uint3 globalThreadId : SV_DispatchThreadID)
 {
-    float3 len = cubeNum * cubeLen;
-    uint3 num = ceil(len / marchingWidth);
-    uint partitionSize = ceil(num.x * num.y * num.z / BLOCK_SIZE / GROUPS_NUM);
-    march(globalThreadId.x * partitionSize, (globalThreadId.x + 1) * partitionSize);
+  // index = x + y * num.x + z * num.x * num.y
+  // index = x + (y+ z * num.y) * num.x
+  // x = index % num.x
+  // y  + z * num.y = index / num.x
+  // y = (index / num.x) % num.y
+  // z = (index / num.x) / num.y
+    march(globalThreadId.x);
 }

@@ -19,8 +19,8 @@ class MarchingCube {
   MarchingCube(const Settings& settings, const std::vector<Particle>& particles)
       : m_particles(particles),
         m_width(settings.marchingCubeWidth),
-        m_worldLen(Vector3(settings.cubeNum.x, settings.cubeNum.y,
-                           settings.cubeNum.z) *
+        m_worldLen(Vector3(settings.cubeNum.x + 1, settings.cubeNum.y + 1,
+                           settings.cubeNum.z + 1) *
                    settings.cubeLen),
         m_worldOffset(settings.pos),
         m_num(XMINT3(std::ceil(m_worldLen.x / m_width),
@@ -39,7 +39,9 @@ class MarchingCube {
   void update_grid();
   void march_cube(XMINT3 pos, std::vector<Vector3>& vertex);
   bool check_collision(Vector3 point);
+  bool check_collision(const Vector3& point, const Vector3& particle);
   const int* get_triangulations(UINT x, UINT y, UINT z);
+  Vector3 get_point(UINT edge_index, XMINT3 pos);
 
   struct VoxelGrid {
     std::vector<bool> data;
