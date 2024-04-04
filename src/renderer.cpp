@@ -4,10 +4,21 @@
 #include <memory>
 
 #include "DDS.h"
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
+#include "imgui_impl_win32.h"
 #include "pch.h"
 #include "simulationRenderer.h"
 
 #define _USE_MATH_DEFINES
+
+#ifdef min
+#undef min
+#endif
+
+#ifdef max
+#undef max
+#endif
 
 struct TextureTangentVertex {
   Vector3 pos;
@@ -77,6 +88,22 @@ bool Renderer::Init(HWND hWnd) {
     m_camera.theta = (float)M_PI / 8;
   }
 
+  // Setup Dear ImGui context
+  if (SUCCEEDED(result)) {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |=
+        ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+    io.ConfigFlags |=
+        ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(hWnd);
+    ImGui_ImplDX11_Init(m_pDeviceResources->GetDevice(),
+                        m_pDeviceResources->GetDeviceContext());
+  }
+
   if (FAILED(result)) {
     Term();
   }
@@ -120,7 +147,12 @@ HRESULT Renderer::InitScene() {
 
   return result;
 }
-void Renderer::Term() { TermScene(); }
+void Renderer::Term() {
+  TermScene();
+  ImGui_ImplDX11_Shutdown();
+  ImGui_ImplWin32_Shutdown();
+  ImGui::DestroyContext();
+}
 
 bool Renderer::Update() {
   size_t usec = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -195,6 +227,12 @@ bool Renderer::Update() {
 }
 
 bool Renderer::Render() {
+  // Start the Dear ImGui frame
+  ImGui_ImplDX11_NewFrame();
+  ImGui_ImplWin32_NewFrame();
+  ImGui::NewFrame();
+  // ImGui::ShowDemoWindow();  // Show demo window! :)
+
   auto deviceContext = m_pDeviceResources->GetDeviceContext();
   deviceContext->ClearState();
 
@@ -236,6 +274,9 @@ bool Renderer::Render() {
   }
   // m_pWater->Render(m_pSceneBuffer);
   m_pSimulationRenderer->Render(m_pSceneBuffer);
+
+  ImGui::Render();
+  ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
   // Rendering
   HRESULT result = m_pDeviceResources->GetSwapChain()->Present(0, 0);

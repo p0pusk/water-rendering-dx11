@@ -1,7 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-  CACHE STRING "Vcpkg toolchain file")
-
+cmake_minimum_required(VERSION 3.20)
 project(wat24)
 
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -36,6 +33,78 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
+#testing...
+set(ENABLE_DIRECTXTK ON)
+set(ENABLE_IMGUI ON)
+
+# headers and paths
+set(CPP_INCLUDE_DIRS "")
+set(CPP_SOURCE_FILES "")
+set(CPP_HEADER_FILES "")
+
+
+if(ENABLE_DIRECTXTK)
+  if (NOT directxtk_FOUND) # If there's none, fetch and build
+    include(FetchContent)
+    FetchContent_Declare(
+      directxtk
+      GIT_REPOSITORY https://github.com/microsoft/DirectXTK
+      GIT_TAG main
+    )
+    FetchContent_GetProperties(directxtk)
+    if (NOT directxtk_POPULATED) # Have we downloaded raylib yet?
+      set(FETCHCONTENT_QUIET NO)
+      FetchContent_Populate(directxtk)
+      # message("directxtk_LIBRARY: " ${directxtk_LIBRARY}) # fail but define in cmake
+      # message("directxtk_INCLUDE_DIR: " ${directxtk_INCLUDE_DIR}) #pass
+      # message("directxtk_SOURCE_DIR: " ${directxtk_SOURCE_DIR}) # pass
+      # message("directxtk_BINARY_DIR: " ${directxtk_BINARY_DIR}) # pass
+      # set(FT_WITH_ZLIB OFF CACHE BOOL "" FORCE)
+      add_subdirectory(${directxtk_SOURCE_DIR} ${directxtk_BINARY_DIR}) #add to build in sub dir
+      list(APPEND CPP_INCLUDE_DIRS ${directxtk_SOURCE_DIR}/Inc)
+    endif()
+  endif()
+endif()
+
+if(ENABLE_IMGUI)
+  if (NOT imgui_FOUND) # If there's none, fetch and build imgui
+    include(FetchContent)
+    FetchContent_Declare(
+      imgui
+      GIT_REPOSITORY https://github.com/ocornut/imgui.git
+      GIT_TAG v1.82
+    )
+    FetchContent_GetProperties(imgui)
+    if (NOT imgui_POPULATED) # Have we downloaded yet?
+      set(FETCHCONTENT_QUIET NO)
+      FetchContent_Populate(imgui)
+      # utility to setup the downloaded library for use
+      FetchContent_MakeAvailable(imgui)
+      list(APPEND CPP_INCLUDE_DIRS ${imgui_SOURCE_DIR})
+      list(APPEND CPP_INCLUDE_DIRS ${imgui_SOURCE_DIR}/backends)
+
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/imgui.cpp)
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/imgui_demo.cpp)
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/imgui_draw.cpp)
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/imgui_tables.cpp)
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp)
+      list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.cpp)
+      #list(APPEND CPP_SOURCE_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp)
+
+      list(APPEND CPP_HEADER_FILES ${imgui_SOURCE_DIR}/imgui.h)
+      list(APPEND CPP_HEADER_FILES ${imgui_SOURCE_DIR}/imconfig.h)
+      list(APPEND CPP_HEADER_FILES ${imgui_SOURCE_DIR}/imgui_internal.h)
+
+      list(APPEND CPP_HEADER_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_win32.h)
+      list(APPEND CPP_HEADER_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_dx11.h)
+      #list(APPEND CPP_HEADER_FILES ${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.h)
+
+    endif()
+  endif()
+endif()
+
 set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
 
 if(DEFINED VCPKG_TARGET_ARCHITECTURE)
@@ -60,23 +129,23 @@ endif()
 
 add_executable(${PROJECT_NAME} WIN32
     ${SRC}
+    ${CPP_HEADER_FILES}
+    ${CPP_SOURCE_FILES}
 )
 
 if(NOT MINGW)
-    target_precompile_headers(${PROJECT_NAME} PRIVATE src/pch.h)
+    # target_precompile_headers(${PROJECT_NAME} PRIVATE src/pch.h)
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    d3d11.lib dxgi.lib dxguid.lib uuid.lib
-    kernel32.lib user32.lib
-    comdlg32.lib advapi32.lib shell32.lib
-    ole32.lib oleaut32.lib gdi32.lib winmm.lib
-    d3dcompiler.lib
+    d3d11.lib dxgi.lib dxguid.lib
+    d3dcompiler.lib DirectXTK
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     ./src
     ./src/simulation
+    ${CPP_INCLUDE_DIRS}
 )
 
 if(MSVC)
@@ -118,14 +187,6 @@ else()
     find_package(directxmath CONFIG QUIET)
 endif()
 
-if(directxmath_FOUND)
-    message(STATUS "Using DirectXMath package")
-    target_link_libraries(${PROJECT_NAME} PUBLIC Microsoft::DirectXMath)
-endif()
-
-# Uncomment if using the DirectX Tool Kit
-find_package(directxtk CONFIG REQUIRED)
-target_link_libraries(${PROJECT_NAME} PRIVATE Microsoft::DirectXTK)
 
 if( CMAKE_CXX_COMPILER_ID MATCHES "Clang|IntelLLVM" )
     target_compile_options(${PROJECT_NAME} PRIVATE

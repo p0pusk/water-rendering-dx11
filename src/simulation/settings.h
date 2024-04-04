@@ -4,7 +4,7 @@
 
 struct Settings {
   Vector3 pos = Vector3::Zero;
-  XMINT3 cubeNum = XMINT3(20, 20, 20);
+  XMINT3 cubeNum = XMINT3(20, 10, 10);
   float cubeLen = 0.20f;
   float h = 0.1f;
   float mass = 0.02f;

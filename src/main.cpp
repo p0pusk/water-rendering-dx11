@@ -12,6 +12,9 @@
 
 #include <iostream>
 
+#include "imgui.h"
+#include "imgui_impl_dx11.h"
+#include "imgui_impl_win32.h"
 #include "renderer.h"
 
 HINSTANCE hInst;
@@ -20,6 +23,10 @@ Renderer *pRenderer;
 bool PressedKeys[0xff] = {};
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+  extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
+      HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+  if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) return true;
+
   LRESULT result = 0;
   switch (msg) {
     case WM_RBUTTONDOWN:
@@ -86,14 +93,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                    LPSTR lpCmdLine, int nShowCmd) {
   // Fix working folder
-  std::wstring dir;
-  dir.resize(MAX_PATH + 1);
-  GetCurrentDirectory(MAX_PATH + 1, &dir[0]);
-  size_t configPos = dir.find(L"bin");
-  if (configPos != std::wstring::npos) {
-    dir.resize(configPos);
-    SetCurrentDirectory(dir.c_str());
-  }
+  // std::wstring dir;
+  // dir.resize(MAX_PATH + 1);
+  // GetCurrentDirectory(MAX_PATH + 1, &dir[0]);
+  // size_t configPos = dir.find(L"build");
+  // if (configPos != std::wstring::npos) {
+  //  dir.resize(configPos);
+  //  SetCurrentDirectory(dir.c_str());
+  //}
 
   // Open a window
   HWND hwnd;
@@ -113,7 +120,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
       return GetLastError();
     }
 
-    RECT initialRect = {0, 0, 1024, 768};
+    RECT initialRect = {0, 0, 1980, 1024};
     AdjustWindowRectEx(&initialRect, WS_OVERLAPPEDWINDOW, FALSE,
                        WS_EX_OVERLAPPEDWINDOW);
     LONG initialWidth = initialRect.right - initialRect.left;
@@ -145,6 +152,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
       TranslateMessage(&msg);
       DispatchMessageW(&msg);
     }
+
     if (pRenderer->Update()) {
       pRenderer->Render();
     }

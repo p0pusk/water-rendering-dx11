@@ -1,5 +1,6 @@
 #include "CubeMap.h"
 
+#include "DDSTextureLoader.h"
 #include "pch.h"
 
 HRESULT CubeMap::InitCubemap() {
@@ -93,13 +94,13 @@ HRESULT CubeMap::Init() {
 
   ID3DBlob* pSphereVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(L"../shaders/SphereTexture.vs",
-                                    (ID3D11DeviceChild**)&m_pVertexShader, {},
-                                    &pSphereVertexShaderCode);
+    result = m_pDeviceResources->CompileAndCreateShader(
+        L"../shaders/SphereTexture.vs", (ID3D11DeviceChild**)&m_pVertexShader,
+        {}, &pSphereVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(L"../shaders/SphereTexture.ps",
-                                    (ID3D11DeviceChild**)&m_pPixelShader);
+    result = m_pDeviceResources->CompileAndCreateShader(
+        L"../shaders/SphereTexture.ps", (ID3D11DeviceChild**)&m_pPixelShader);
   }
 
   if (SUCCEEDED(result)) {
