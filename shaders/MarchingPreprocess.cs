@@ -7,7 +7,7 @@ bool check_collision(in float3 p, in float3 v)
 {
     float min_dist = h;
     float d = distance(p, v);
-    if (d <= min_dist)
+    if (d < min_dist)
     {
         return true;
     }

@@ -74,6 +74,7 @@ class SimRenderer : Primitive {
   HRESULT Init() override;
   void Update(float dt);
   void Render(ID3D11Buffer* pSceneBuffer = nullptr) override;
+  void ImGuiRender();
 
   const Settings& m_settings;
 
@@ -118,11 +119,26 @@ class SimRenderer : Primitive {
   ComPtr<ID3D11UnorderedAccessView> m_pHashBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pSphBufferSRV;
 
+  ID3D11Query* m_pQueryDisjoint[2];
+  ID3D11Query* m_pQuerySphStart[2];
+  ID3D11Query* m_pQuerySphEnd[2];
+  ID3D11Query* m_pQueryMarchingStart[2];
+  ID3D11Query* m_pQueryMarchingClear[2];
+  ID3D11Query* m_pQueryMarchingPreprocess[2];
+  ID3D11Query* m_pQueryMarchingMain[2];
+
+  float m_sphTime;
+  float m_marchingClear;
+  float m_marchingPrep;
+  float m_marchingMain;
+  UINT m_frameNum = 1;
+
   HRESULT InitSph();
   HRESULT InitSpheres();
   HRESULT InitMarching();
 
   HRESULT UpdatePhysGPU();
+  void CollectTimestamps();
 
   void RenderMarching(ID3D11Buffer* pSceneBuffer = nullptr);
   void RenderSpheres(ID3D11Buffer* pSceneBuffer = nullptr);

@@ -226,13 +226,14 @@ bool Renderer::Update() {
   return SUCCEEDED(result);
 }
 
-bool Renderer::Render() {
-  // Start the Dear ImGui frame
-  ImGui_ImplDX11_NewFrame();
-  ImGui_ImplWin32_NewFrame();
-  ImGui::NewFrame();
-  // ImGui::ShowDemoWindow();  // Show demo window! :)
+void Renderer::ImGuiRender() {
+  ImGui::Begin("test");
+  ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+              1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+  ImGui::End();
+}
 
+bool Renderer::Render() {
   auto deviceContext = m_pDeviceResources->GetDeviceContext();
   deviceContext->ClearState();
 
@@ -266,6 +267,11 @@ bool Renderer::Render() {
   deviceContext->RSSetState(m_pDeviceResources->GetRasterizerState());
 
   // m_pCubeMap->Render(m_pSceneBuffer);
+  ImGui_ImplDX11_NewFrame();
+  ImGui_ImplWin32_NewFrame();
+  ImGui::NewFrame();
+
+  ImGuiRender();
   try {
     m_pSurface->Render(m_pSceneBuffer);
   } catch (std::exception& e) {

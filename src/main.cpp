@@ -96,11 +96,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   // std::wstring dir;
   // dir.resize(MAX_PATH + 1);
   // GetCurrentDirectory(MAX_PATH + 1, &dir[0]);
-  // size_t configPos = dir.find(L"build");
+  // size_t configPos = dir.find(L"build/bin/Debug");
   // if (configPos != std::wstring::npos) {
-  //  dir.resize(configPos);
-  //  SetCurrentDirectory(dir.c_str());
-  //}
+  //   dir.resize(configPos);
+  //   SetCurrentDirectory(dir.c_str());
+  // }
 
   // Open a window
   HWND hwnd;
@@ -120,7 +120,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
       return GetLastError();
     }
 
-    RECT initialRect = {0, 0, 1980, 1024};
+    RECT initialRect = {0, 0, 1920, 1080};
     AdjustWindowRectEx(&initialRect, WS_OVERLAPPEDWINDOW, FALSE,
                        WS_EX_OVERLAPPEDWINDOW);
     LONG initialWidth = initialRect.right - initialRect.left;

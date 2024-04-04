@@ -8,7 +8,6 @@ set(SRC
 ./src/renderer.cpp
 ./src/DDS.cpp
 ./src/simulation/marching-cubes.cpp
-# ./src/simulation/marching-cubes-gpu.cpp
 ./src/simulation/water.cpp
 ./src/simulationRenderer.cpp
 ./src/simulation/heightfield.cpp

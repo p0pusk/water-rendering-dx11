@@ -79,6 +79,7 @@ class Renderer {
   };
 
  private:
+  void ImGuiRender();
   HRESULT InitScene();
   void TermScene();
 
