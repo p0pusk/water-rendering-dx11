@@ -20,7 +20,7 @@ void update_grid(uint start, uint end)
     {
         end = particlesNum;
     }
-    float3 len = (cubeNum + uint3(1, 1, 1)) * cubeLen;
+    float3 len = boundaryLen;
     uint3 num = ceil(len / marchingWidth);
 
     for (int p = start; p < end; ++p)

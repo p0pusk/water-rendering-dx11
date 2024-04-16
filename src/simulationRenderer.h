@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <memory>
 
+#include "SimpleMath.h"
 #include "device-resources.h"
 #include "marching-cubes.h"
 #include "neighbour-hash.h"
@@ -39,46 +40,44 @@ struct MarchingVertex {
 };
 
 struct SphCB {
-  Vector3 pos;
+  Vector3 worldOffset;
   UINT particleNum;
-  XMINT3 cubeNum;
-  float cubeLen;
+  Vector3 boundaryLen;
   float h;
   float mass;
   float dynamicViscosity;
   float dampingCoeff;
   float marchingCubeWidth;
-  UINT hashTableTime;
-  Vector2 dt;
+  UINT hashTableSize;
+  Vector3 dt;
 };
 
 class SimRenderer : Primitive {
- public:
+public:
   std::vector<Particle> m_particles;
   std::vector<UINT> m_hash_table;
   UINT m_num_particles;
   int n = 0;
 
   SimRenderer() = delete;
-  SimRenderer(SimRenderer const& s) = delete;
-  SimRenderer(SimRenderer&& s) = delete;
+  SimRenderer(SimRenderer const &s) = delete;
+  SimRenderer(SimRenderer &&s) = delete;
   SimRenderer(std::shared_ptr<DX::DeviceResources> dxController,
-              const Settings& props)
+              const Settings &props)
       : Primitive(dxController),
         m_hash_table(m_settings.TABLE_SIZE, NO_PARTICLE),
-        m_num_particles(props.cubeNum.x * props.cubeNum.y * props.cubeNum.z),
-        m_settings(props),
-        m_marchingCubesAlgo(props, m_particles),
+        m_num_particles(props.initCube.x * props.initCube.y * props.initCube.z),
+        m_settings(props), m_marchingCubesAlgo(props, m_particles),
         m_sphAlgo(props) {}
 
   HRESULT Init() override;
   void Update(float dt);
-  void Render(ID3D11Buffer* pSceneBuffer = nullptr) override;
+  void Render(ID3D11Buffer *pSceneBuffer = nullptr) override;
   void ImGuiRender();
 
-  const Settings& m_settings;
+  const Settings &m_settings;
 
- private:
+private:
   UINT m_sphereIndexCount;
 
   MarchingCube m_marchingCubesAlgo;
@@ -119,19 +118,19 @@ class SimRenderer : Primitive {
   ComPtr<ID3D11UnorderedAccessView> m_pHashBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pSphBufferSRV;
 
-  ID3D11Query* m_pQueryDisjoint[2];
-  ID3D11Query* m_pQuerySphStart[2];
-  ID3D11Query* m_pQuerySphCopy[2];
-  ID3D11Query* m_pQuerySphClear[2];
-  ID3D11Query* m_pQuerySphHash[2];
-  ID3D11Query* m_pQuerySphDensity[2];
-  ID3D11Query* m_pQuerySphPressure[2];
-  ID3D11Query* m_pQuerySphForces[2];
-  ID3D11Query* m_pQuerySphPosition[2];
-  ID3D11Query* m_pQueryMarchingStart[2];
-  ID3D11Query* m_pQueryMarchingClear[2];
-  ID3D11Query* m_pQueryMarchingPreprocess[2];
-  ID3D11Query* m_pQueryMarchingMain[2];
+  ID3D11Query *m_pQueryDisjoint[2];
+  ID3D11Query *m_pQuerySphStart[2];
+  ID3D11Query *m_pQuerySphCopy[2];
+  ID3D11Query *m_pQuerySphClear[2];
+  ID3D11Query *m_pQuerySphHash[2];
+  ID3D11Query *m_pQuerySphDensity[2];
+  ID3D11Query *m_pQuerySphPressure[2];
+  ID3D11Query *m_pQuerySphForces[2];
+  ID3D11Query *m_pQuerySphPosition[2];
+  ID3D11Query *m_pQueryMarchingStart[2];
+  ID3D11Query *m_pQueryMarchingClear[2];
+  ID3D11Query *m_pQueryMarchingPreprocess[2];
+  ID3D11Query *m_pQueryMarchingMain[2];
 
   float m_sphTime;
   float m_sphCopyTime;
@@ -155,6 +154,6 @@ class SimRenderer : Primitive {
   HRESULT UpdatePhysGPU();
   void CollectTimestamps();
 
-  void RenderMarching(ID3D11Buffer* pSceneBuffer = nullptr);
-  void RenderSpheres(ID3D11Buffer* pSceneBuffer = nullptr);
+  void RenderMarching(ID3D11Buffer *pSceneBuffer = nullptr);
+  void RenderSpheres(ID3D11Buffer *pSceneBuffer = nullptr);
 };

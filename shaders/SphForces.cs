@@ -23,7 +23,7 @@ void cs(uint3 GTid : SV_DispatchThreadID)
 
   // Compute pressure force
     particles[GTid.x].pressureGrad = float3(0, 0, 0);
-    particles[GTid.x].force = float4(0, -9.8f * particles[GTid.x].density, 0, 0);
+    particles[GTid.x].force = float4(0.f, -9.8f * particles[GTid.x].density, 0, 0);
     particles[GTid.x].viscosity = float4(0, 0, 0, 0);
     for (int i = -1; i <= 1; i++)
     {

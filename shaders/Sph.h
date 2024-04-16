@@ -1,15 +1,14 @@
 cbuffer SphCB : register(b0) {
   float3 worldPos;
   uint particlesNum;
-  uint3 cubeNum;
-  float cubeLen;
+  float3 boundaryLen;
   float h;
   float mass;
   float dynamicViscosity;
   float dampingCoeff;
   float marchingWidth;
   uint g_tableSize;
-  float2 dt;
+  float3 dt;
 };
 
 struct Particle {

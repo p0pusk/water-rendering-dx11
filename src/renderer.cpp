@@ -30,7 +30,7 @@ struct TextureTangentVertex {
 struct GeomBuffer {
   DirectX::XMMATRIX m;
   DirectX::XMMATRIX normalM;
-  Vector4 shine;  // x - shininess
+  Vector4 shine; // x - shininess
 };
 
 static const float CameraRotationSpeed = (float)M_PI * 2.0f;
@@ -40,7 +40,7 @@ static const float Eps = 0.00001f;
 
 Settings g_settings;
 
-void Renderer::Camera::GetDirections(Vector3& forward, Vector3& right) {
+void Renderer::Camera::GetDirections(Vector3 &forward, Vector3 &right) {
   Vector3 dir =
       -Vector3{cosf(theta) * cosf(phi), sinf(theta), cosf(theta) * sinf(phi)};
   float upTheta = theta + (float)M_PI / 2;
@@ -92,11 +92,11 @@ bool Renderer::Init(HWND hWnd) {
   if (SUCCEEDED(result)) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |=
-        ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+        ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |=
-        ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
+        ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hWnd);
@@ -138,7 +138,7 @@ HRESULT Renderer::InitScene() {
     m_pSimulationRenderer =
         std::make_unique<SimRenderer>(m_pDeviceResources, g_settings);
     m_pSimulationRenderer->Init();
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     std::cout << e.what();
     exit(1);
   }
@@ -160,7 +160,7 @@ bool Renderer::Update() {
                     .count();
 
   if (m_prevUSec == 0) {
-    m_prevUSec = usec;  // Initial update
+    m_prevUSec = usec; // Initial update
   }
 
   double deltaSec = (usec - m_prevUSec) / 1000000.0;
@@ -230,7 +230,7 @@ bool Renderer::Render() {
   auto deviceContext = m_pDeviceResources->GetDeviceContext();
   deviceContext->ClearState();
 
-  ID3D11RenderTargetView* views[] = {m_pDeviceResources->GetBackBufferRTV()};
+  ID3D11RenderTargetView *views[] = {m_pDeviceResources->GetBackBufferRTV()};
   deviceContext->OMSetRenderTargets(1, views,
                                     m_pDeviceResources->GetDepthBufferDSV());
 
@@ -266,7 +266,7 @@ bool Renderer::Render() {
 
   try {
     m_pSurface->Render(m_pSceneBuffer);
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     exit(1);
   }
@@ -328,62 +328,62 @@ void Renderer::MouseWheel(int delta) {
 
 void Renderer::KeyPressed(int keyCode) {
   switch (keyCode) {
-    case ' ':
-      m_rotateModel = !m_rotateModel;
-      break;
+  case ' ':
+    m_rotateModel = !m_rotateModel;
+    break;
 
-    case 'W':
-    case 'w':
-      m_forwardDelta += PanSpeed;
-      break;
+  case 'W':
+  case 'w':
+    m_forwardDelta += PanSpeed;
+    break;
 
-    case 'S':
-    case 's':
-      m_forwardDelta -= PanSpeed;
-      break;
+  case 'S':
+  case 's':
+    m_forwardDelta -= PanSpeed;
+    break;
 
-    case 'D':
-    case 'd':
-      m_rightDelta += PanSpeed;
-      break;
+  case 'D':
+  case 'd':
+    m_rightDelta += PanSpeed;
+    break;
 
-    case 'A':
-    case 'a':
-      m_rightDelta -= PanSpeed;
-      break;
-    case 'I':
-    case 'i':
-      // m_pWater->StartImpulse(25, 25, 2, 2);
-      g_settings.marching = !g_settings.marching;
-      break;
+  case 'A':
+  case 'a':
+    m_rightDelta -= PanSpeed;
+    break;
+  case 'I':
+  case 'i':
+    // m_pWater->StartImpulse(25, 25, 2, 2);
+    g_settings.marching = !g_settings.marching;
+    break;
   }
 }
 
 void Renderer::KeyReleased(int keyCode) {
   switch (keyCode) {
-    case 'W':
-    case 'w':
-      m_forwardDelta -= PanSpeed;
-      break;
+  case 'W':
+  case 'w':
+    m_forwardDelta -= PanSpeed;
+    break;
 
-    case 'S':
-    case 's':
-      m_forwardDelta += PanSpeed;
-      break;
+  case 'S':
+  case 's':
+    m_forwardDelta += PanSpeed;
+    break;
 
-    case 'D':
-    case 'd':
-      m_rightDelta -= PanSpeed;
-      break;
+  case 'D':
+  case 'd':
+    m_rightDelta -= PanSpeed;
+    break;
 
-    case 'A':
-    case 'a':
-      m_rightDelta += PanSpeed;
-      break;
+  case 'A':
+  case 'a':
+    m_rightDelta += PanSpeed;
+    break;
 
-    case 'I':
-    case 'i':
-      break;
+  case 'I':
+  case 'i':
+    break;
   }
 }
 

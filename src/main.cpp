@@ -26,67 +26,68 @@ bool PressedKeys[0xff] = {};
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
       HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-  if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) return true;
+  if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam))
+    return true;
 
   LRESULT result = 0;
   switch (msg) {
-    case WM_RBUTTONDOWN:
-      if (pRenderer != nullptr) {
-        pRenderer->MouseRBPressed(true, GET_X_LPARAM(lparam),
-                                  GET_Y_LPARAM(lparam));
-      }
-      break;
-
-    case WM_RBUTTONUP:
-      if (pRenderer != nullptr) {
-        pRenderer->MouseRBPressed(false, GET_X_LPARAM(lparam),
-                                  GET_Y_LPARAM(lparam));
-      }
-      break;
-
-    case WM_MOUSEMOVE:
-      if (pRenderer != nullptr) {
-        pRenderer->MouseMoved(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
-      }
-      break;
-
-    case WM_MOUSEWHEEL:
-      if (pRenderer != nullptr) {
-        pRenderer->MouseWheel(GET_WHEEL_DELTA_WPARAM(wparam));
-      }
-      break;
-
-    case WM_KEYDOWN:
-      if (wparam == VK_ESCAPE)
-        DestroyWindow(hwnd);
-      else if (!PressedKeys[wparam]) {
-        if (pRenderer != nullptr) {
-          pRenderer->KeyPressed((int)wparam);
-        }
-        PressedKeys[wparam] = true;
-      }
-      break;
-
-    case WM_KEYUP:
-      PressedKeys[wparam] = false;
-      if (pRenderer != nullptr) {
-        pRenderer->KeyReleased((int)wparam);
-      }
-      break;
-    case WM_DESTROY: {
-      PostQuitMessage(0);
-      break;
+  case WM_RBUTTONDOWN:
+    if (pRenderer != nullptr) {
+      pRenderer->MouseRBPressed(true, GET_X_LPARAM(lparam),
+                                GET_Y_LPARAM(lparam));
     }
-    case WM_SIZE: {
-      if (pRenderer != nullptr) {
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-        pRenderer->Resize(rc.right - rc.left, rc.bottom - rc.top);
-      }
-      break;
+    break;
+
+  case WM_RBUTTONUP:
+    if (pRenderer != nullptr) {
+      pRenderer->MouseRBPressed(false, GET_X_LPARAM(lparam),
+                                GET_Y_LPARAM(lparam));
     }
-    default:
-      result = DefWindowProcW(hwnd, msg, wparam, lparam);
+    break;
+
+  case WM_MOUSEMOVE:
+    if (pRenderer != nullptr) {
+      pRenderer->MouseMoved(GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam));
+    }
+    break;
+
+  case WM_MOUSEWHEEL:
+    if (pRenderer != nullptr) {
+      pRenderer->MouseWheel(GET_WHEEL_DELTA_WPARAM(wparam));
+    }
+    break;
+
+  case WM_KEYDOWN:
+    if (wparam == VK_ESCAPE)
+      DestroyWindow(hwnd);
+    else if (!PressedKeys[wparam]) {
+      if (pRenderer != nullptr) {
+        pRenderer->KeyPressed((int)wparam);
+      }
+      PressedKeys[wparam] = true;
+    }
+    break;
+
+  case WM_KEYUP:
+    PressedKeys[wparam] = false;
+    if (pRenderer != nullptr) {
+      pRenderer->KeyReleased((int)wparam);
+    }
+    break;
+  case WM_DESTROY: {
+    PostQuitMessage(0);
+    break;
+  }
+  case WM_SIZE: {
+    if (pRenderer != nullptr) {
+      RECT rc;
+      GetClientRect(hwnd, &rc);
+      pRenderer->Resize(rc.right - rc.left, rc.bottom - rc.top);
+    }
+    break;
+  }
+  default:
+    result = DefWindowProcW(hwnd, msg, wparam, lparam);
   }
   return result;
 }
@@ -149,7 +150,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   while (isRunning) {
     MSG msg = {};
     while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) {
-      if (msg.message == WM_QUIT) isRunning = false;
+      if (msg.message == WM_QUIT)
+        isRunning = false;
       TranslateMessage(&msg);
       DispatchMessageW(&msg);
     }

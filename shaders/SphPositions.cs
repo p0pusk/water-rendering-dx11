@@ -6,37 +6,45 @@ RWStructuredBuffer<uint> grid : register(u1);
 
 void CheckBoundary(in uint index)
 {
-    float3 len = cubeNum * cubeLen;
+    float3 localPos = particles[index].position - worldPos;
 
-    if (particles[index].position.y < h + worldPos.y)
+    if (localPos.y < h)
     {
-        particles[index].position.y = -particles[index].position.y + 2 * (h + worldPos.y);
+        localPos.y = -localPos.y + 2 * h;
         particles[index].velocity.y = -particles[index].velocity.y * dampingCoeff;
     }
 
-    if (particles[index].position.x < h + worldPos.x)
+    if (localPos.y > -h + boundaryLen.y)
     {
-        particles[index].position.x = -particles[index].position.x + 2 * (worldPos.x + h);
+        localPos.y = -localPos.y + 2 * (-h + boundaryLen.y);
+        particles[index].velocity.y = -particles[index].velocity.y * dampingCoeff;
+    }
+
+    if (localPos.x < h)
+    {
+        localPos.x = -localPos.x + 2 * h;
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
-    if (particles[index].position.x > -h + worldPos.x + len.x)
+    if (localPos.x > -h + boundaryLen.x)
     {
-        particles[index].position.x = -particles[index].position.x + 2 * (-h + worldPos.x + len.x);
+        localPos.x = -localPos.x + 2 * (-h + boundaryLen.x);
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
-    if (particles[index].position.z < h + worldPos.z)
+    if (localPos.z < h)
     {
-        particles[index].position.z = -particles[index].position.z + 2 * (h + worldPos.z);
+        localPos.z = -localPos.z + 2 * h;
         particles[index].velocity.z = -particles[index].velocity.z * dampingCoeff;
     }
 
-    if (particles[index].position.z > -h + worldPos.z + len.z)
+    if (localPos.z > -h + boundaryLen.z)
     {
-        particles[index].position.z = -particles[index].position.z + 2 * (-h + worldPos.z + len.z);
+        localPos.z = -localPos.z + 2 * (-h + boundaryLen.z);
         particles[index].velocity.z = -particles[index].velocity.z * dampingCoeff;
     }
+
+    particles[index].position = localPos + worldPos;
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]

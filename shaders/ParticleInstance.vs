@@ -25,7 +25,7 @@ struct VSOutput
 {
     float4 pos : SV_Position;
     float3 worldPos : POSITION;
-    float4 color : COLOR;
+    float3 centerPos : PARTICLE_POS;
 };
 
 VSOutput vs(VSInput vertex)
@@ -33,9 +33,8 @@ VSOutput vs(VSInput vertex)
     VSOutput result;
 
     result.pos = mul(vp, float4(particles[vertex.instanceID].position + vertex.pos, 1));
-    result.worldPos = particles[vertex.instanceID].position;
-    float c = clamp(0.25, 1, log10(particles[vertex.instanceID].density - 7));
-    result.color = float4(0.1, 0.5, 1, 1);
+    result.worldPos = particles[vertex.instanceID].position + vertex.pos;
+    result.centerPos = particles[vertex.instanceID].position;
 
     return result;
 }

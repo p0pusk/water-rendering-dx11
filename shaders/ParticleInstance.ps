@@ -1,11 +1,22 @@
+#include "shaders/Sph.h"
+
 struct VSOutput
 {
     float4 pos : SV_Position;
     float3 worldPos : POSITION;
-    float4 color : COLOR;
+    float3 centerPos : PARTICLE_POS;
 };
 
 float4 ps(VSOutput pixel) : SV_Target0
 {
-    return pixel.color;
+    float4 color;
+
+    if (distance(pixel.worldPos, pixel.centerPos) >= h / 4) {
+       color = float4(0, 0, 0, 1);
+    }
+    else {
+       color = float4(0.1, 0.5, 1, 1);
+    }
+
+    return color;
 }

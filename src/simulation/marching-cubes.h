@@ -14,15 +14,11 @@ using namespace DirectX;
 using namespace DirectX::SimpleMath;
 
 class MarchingCube {
- public:
+public:
   MarchingCube() = delete;
-  MarchingCube(const Settings& settings, const std::vector<Particle>& particles)
-      : m_particles(particles),
-        m_width(settings.marchingCubeWidth),
-        m_worldLen(Vector3(settings.cubeNum.x + 1, settings.cubeNum.y + 1,
-                           settings.cubeNum.z + 1) *
-                   settings.cubeLen),
-        m_worldOffset(settings.pos),
+  MarchingCube(const Settings &settings, const std::vector<Particle> &particles)
+      : m_particles(particles), m_width(settings.marchingCubeWidth),
+        m_worldLen(settings.boundaryLen), m_worldOffset(settings.worldOffset),
         m_num(XMINT3(std::ceil(m_worldLen.x / m_width),
                      std::ceil(m_worldLen.y / m_width),
                      std::ceil(m_worldLen.z / m_width))),
@@ -33,14 +29,14 @@ class MarchingCube {
     update_grid();
   }
 
-  void march(std::vector<Vector3>& vertex);
+  void march(std::vector<Vector3> &vertex);
 
- private:
+private:
   void update_grid();
-  void march_cube(XMINT3 pos, std::vector<Vector3>& vertex);
+  void march_cube(XMINT3 pos, std::vector<Vector3> &vertex);
   bool check_collision(Vector3 point);
-  bool check_collision(const Vector3& point, const Vector3& particle);
-  const int* get_triangulations(UINT x, UINT y, UINT z);
+  bool check_collision(const Vector3 &point, const Vector3 &particle);
+  const int *get_triangulations(UINT x, UINT y, UINT z);
   Vector3 get_point(UINT edge_index, XMINT3 pos);
 
   struct VoxelGrid {
@@ -52,7 +48,7 @@ class MarchingCube {
     }
   };
   VoxelGrid m_voxel_grid;
-  const std::vector<Particle>& m_particles;
+  const std::vector<Particle> &m_particles;
   float m_width;
   Vector3 m_worldLen;
   Vector3 m_worldOffset;

@@ -2,7 +2,7 @@
 
 #include <vector>
 
-Sph::Sph(const Settings& settings) : m_settings(settings) {
+Sph::Sph(const Settings &settings) : m_settings(settings) {
   poly6 = 315.0f / (64.0f * M_PI * pow(settings.h, 9));
   spikyGrad = -45.0f / (M_PI * pow(settings.h, 6));
   spikyLap = 45.0f / (M_PI * pow(settings.h, 6));
@@ -15,13 +15,13 @@ UINT Sph::GetHash(XMINT3 cell) {
 }
 
 XMINT3 Sph::GetCell(Vector3 position) {
-  auto res = (position - m_settings.pos) / m_settings.h;
+  auto res = (position - m_settings.worldOffset) / m_settings.h;
   return XMINT3(res.x, res.y, res.z);
 }
 
-void Sph::Init(std::vector<Particle>& particles) {
-  const float& h = m_settings.h;
-  const XMINT3& cubeNum = m_settings.cubeNum;
+void Sph::Init(std::vector<Particle> &particles) {
+  const float &h = m_settings.h;
+  const XMINT3 &cubeNum = m_settings.initCube;
   float separation = h - 0.01f;
   Vector3 offset = {h, h, h};
 
@@ -32,10 +32,13 @@ void Sph::Init(std::vector<Particle>& particles) {
       for (int z = 0; z < cubeNum.z; z++) {
         size_t particleIndex = x + (y + z * cubeNum.y) * cubeNum.x;
 
-        Particle& p = particles[particleIndex];
-        p.position.x = m_settings.pos.x + x * separation + offset.x;
-        p.position.y = m_settings.pos.y + y * separation + offset.y;
-        p.position.z = m_settings.pos.z + z * separation + offset.z;
+        Particle &p = particles[particleIndex];
+        p.position.x = m_settings.worldOffset.x + x * separation + offset.x +
+                       m_settings.initLocalPos.x;
+        p.position.y = m_settings.worldOffset.y + y * separation + offset.y +
+                       m_settings.initLocalPos.y;
+        p.position.z = m_settings.worldOffset.z + z * separation + offset.z +
+                       m_settings.initLocalPos.z;
         p.velocity = Vector3::Zero;
         p.hash = GetHash(GetCell(p.position));
       }
@@ -43,21 +46,21 @@ void Sph::Init(std::vector<Particle>& particles) {
   }
 
   std::sort(particles.begin(), particles.end(),
-            [](Particle& a, Particle& b) { return a.hash < b.hash; });
+            [](Particle &a, Particle &b) { return a.hash < b.hash; });
 }
 
-void Sph::Update(float dt, std::vector<Particle>& particles) {
-  const float& h = m_settings.h;
+void Sph::Update(float dt, std::vector<Particle> &particles) {
+  const float &h = m_settings.h;
 
   m_hashM.clear();
 
   // init hash map
-  for (auto& p : particles) {
+  for (auto &p : particles) {
     m_hashM.insert(std::make_pair(GetHash(GetCell(p.position)), &p));
   }
 
   // Compute density
-  for (auto& p : particles) {
+  for (auto &p : particles) {
     p.density = 0;
     for (int i = -1; i <= 1; i++) {
       for (int j = -1; j <= 1; j++) {
@@ -80,14 +83,14 @@ void Sph::Update(float dt, std::vector<Particle>& particles) {
   }
 
   // Compute pressure
-  for (auto& p : particles) {
+  for (auto &p : particles) {
     float k = 1;
     float p0 = 1000;
     p.pressure = k * (p.density - p0);
   }
 
   // Compute pressure force
-  for (auto& p : particles) {
+  for (auto &p : particles) {
     p.pressureGrad = Vector3::Zero;
     p.force = Vector4(0, -9.8f * p.density, 0, 0);
     p.viscosity = Vector4::Zero;
@@ -120,7 +123,7 @@ void Sph::Update(float dt, std::vector<Particle>& particles) {
   }
 
   // TimeStep
-  for (auto& p : particles) {
+  for (auto &p : particles) {
     p.velocity +=
         dt * (p.pressureGrad + Vector3(p.force + p.viscosity)) / p.density;
     p.position += dt * Vector3(p.velocity);
@@ -130,36 +133,35 @@ void Sph::Update(float dt, std::vector<Particle>& particles) {
   }
 }
 
-void Sph::CheckBoundary(Particle& p) {
-  float h = m_settings.h;
+void Sph::CheckBoundary(Particle &p) {
+  const float &h = m_settings.h;
   float dampingCoeff = m_settings.dampingCoeff;
-  const Vector3& pos = m_settings.pos;
-  Vector3 len = Vector3(m_settings.cubeNum.x, m_settings.cubeNum.y,
-                        m_settings.cubeNum.z) *
-                m_settings.cubeLen;
+  Vector3 localPos = p.position - m_settings.worldOffset;
 
-  if (p.position.y < h + pos.y) {
-    p.position.y = -p.position.y + 2 * (h + pos.y);
+  if (localPos.y < h) {
+    localPos.y = -localPos.y + 2 * h;
     p.velocity.y = -p.velocity.y * dampingCoeff;
   }
 
-  if (p.position.x < h + pos.x) {
-    p.position.x = -p.position.x + 2 * (pos.x + h);
+  if (localPos.x < h) {
+    localPos.x = -localPos.x + 2 * h;
     p.velocity.x = -p.velocity.x * dampingCoeff;
   }
 
-  if (p.position.x > -h + pos.x + len.x) {
-    p.position.x = -p.position.x + 2 * (-h + pos.x + len.x);
+  if (localPos.x > -h + m_settings.boundaryLen.x) {
+    localPos.x = -localPos.x + 2 * (-h + m_settings.boundaryLen.x);
     p.velocity.x = -p.velocity.x * dampingCoeff;
   }
 
-  if (p.position.z < h + pos.z) {
-    p.position.z = -p.position.z + 2 * (h + pos.z);
+  if (p.position.z < h) {
+    localPos.z = -p.position.z + 2 * h;
     p.velocity.z = -p.velocity.z * dampingCoeff;
   }
 
-  if (p.position.z > -h + pos.z + len.z) {
-    p.position.z = -p.position.z + 2 * (-h + pos.z + len.z);
+  if (localPos.z > -h + m_settings.boundaryLen.z) {
+    localPos.z = -localPos.z + 2 * (-h + m_settings.boundaryLen.z);
     p.velocity.z = -p.velocity.z * dampingCoeff;
   }
+
+  p.position = localPos + m_settings.worldOffset;
 }

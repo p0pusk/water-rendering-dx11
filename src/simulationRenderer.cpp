@@ -20,21 +20,21 @@ HRESULT SimRenderer::Init() {
   try {
     m_sphAlgo.Init(m_particles);
     result = InitSph();
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "InitSph() failed" << std::endl;
     exit(1);
   }
   try {
     result = InitMarching();
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "InitMarching() failed" << std::endl;
     exit(1);
   }
   try {
     result = InitSpheres();
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "InitSpheres() failed" << std::endl;
     exit(1);
@@ -82,16 +82,15 @@ HRESULT SimRenderer::InitSph() {
 
   // create sph constant buffer
   try {
-    m_sphCB.pos = m_settings.pos;
+    m_sphCB.worldOffset = m_settings.worldOffset;
     m_sphCB.particleNum = m_num_particles;
-    m_sphCB.cubeNum = m_settings.cubeNum;
-    m_sphCB.cubeLen = m_settings.cubeLen;
+    m_sphCB.boundaryLen = m_settings.boundaryLen;
     m_sphCB.h = m_settings.h;
     m_sphCB.mass = m_settings.mass;
     m_sphCB.dynamicViscosity = m_settings.dynamicViscosity;
     m_sphCB.dampingCoeff = m_settings.dampingCoeff;
     m_sphCB.marchingCubeWidth = m_settings.marchingCubeWidth;
-    m_sphCB.hashTableTime = m_settings.TABLE_SIZE;
+    m_sphCB.hashTableSize = m_settings.TABLE_SIZE;
     m_sphCB.dt.x = 1.f / 120.f;
 
     D3D11_SUBRESOURCE_DATA data = {};
@@ -99,7 +98,7 @@ HRESULT SimRenderer::InitSph() {
 
     m_pDeviceResources->CreateConstantBuffer<SphCB>(&m_pSphCB, 0, &data,
                                                     "SphConstantBuffer");
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << e.what() << std::endl;
     throw e;
   }
@@ -113,7 +112,7 @@ HRESULT SimRenderer::InitSph() {
         m_num_particles, D3D11_USAGE_DEFAULT,
         D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE, &data, "SphDataBuffer",
         &m_pSphDataBuffer);
-  } catch (std::exception& e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     throw e;
   }
@@ -155,41 +154,42 @@ HRESULT SimRenderer::InitSph() {
 
   hr = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/SphClearTable.cs",
-      (ID3D11DeviceChild**)m_pClearTableCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pClearTableCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pClearTableCS.Get(), "ClearTableShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/SphCreateTable.cs",
-      (ID3D11DeviceChild**)m_pTableCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pTableCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pTableCS.Get(), "TableComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/SphDensity.cs",
-      (ID3D11DeviceChild**)m_pDensityCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pDensityCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pDensityCS.Get(), "DensityComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/SphPressure.cs",
-      (ID3D11DeviceChild**)m_pPressureCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pPressureCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pPressureCS.Get(), "PressureComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"shaders/SphForces.cs", (ID3D11DeviceChild**)m_pForcesCS.GetAddressOf());
+      L"shaders/SphForces.cs",
+      (ID3D11DeviceChild **)m_pForcesCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pForcesCS.Get(), "ForcesComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/SphPositions.cs",
-      (ID3D11DeviceChild**)m_pPositionsCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pPositionsCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pPositionsCS.Get(), "PositionsComputeShader");
   DX::ThrowIfFailed(hr);
@@ -217,7 +217,7 @@ HRESULT SimRenderer::InitSpheres() {
 
   CreateSphere(SphereSteps, SphereSteps, indices.data(), sphereVertices.data());
 
-  for (auto& v : sphereVertices) {
+  for (auto &v : sphereVertices) {
     v = v * m_settings.particleRadius;
   }
 
@@ -263,14 +263,14 @@ HRESULT SimRenderer::InitSpheres() {
     DX::ThrowIfFailed(result);
   }
 
-  ID3DBlob* pVertexShaderCode = nullptr;
+  ID3DBlob *pVertexShaderCode = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"shaders/ParticleInstance.vs", (ID3D11DeviceChild**)&m_pVertexShader, {},
-      &pVertexShaderCode);
+      L"shaders/ParticleInstance.vs", (ID3D11DeviceChild **)&m_pVertexShader,
+      {}, &pVertexShaderCode);
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"shaders/ParticleInstance.ps", (ID3D11DeviceChild**)&m_pPixelShader);
+      L"shaders/ParticleInstance.ps", (ID3D11DeviceChild **)&m_pPixelShader);
   DX::ThrowIfFailed(result);
 
   result = pDevice->CreateInputLayout(
@@ -297,12 +297,9 @@ HRESULT SimRenderer::InitMarching() {
 
   HRESULT result = S_OK;
 
-  Vector3 len = Vector3(m_settings.cubeNum.x + 1, m_settings.cubeNum.y + 1,
-                        m_settings.cubeNum.z + 1) *
-                m_settings.cubeLen;
-
-  UINT cubeNums =
-      std::ceil(len.x * len.y * len.z / pow(m_settings.marchingCubeWidth, 3));
+  UINT cubeNums = std::ceil(
+      m_settings.boundaryLen.x * m_settings.boundaryLen.y *
+      m_settings.boundaryLen.z / pow(m_settings.marchingCubeWidth, 3));
   UINT max_n = cubeNums * 16;
 
   // Create vertex buffer
@@ -399,20 +396,20 @@ HRESULT SimRenderer::InitMarching() {
     DX::ThrowIfFailed(result);
   }
 
-  ID3DBlob* pVertexShaderCode = nullptr;
+  ID3DBlob *pVertexShaderCode = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingCubes.vs",
-      (ID3D11DeviceChild**)m_pMarchingVertexShader.GetAddressOf(), {},
+      (ID3D11DeviceChild **)m_pMarchingVertexShader.GetAddressOf(), {},
       &pVertexShaderCode);
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingVertexShader.Get(),
                            "MarchingCubesVertexShader");
   DX::ThrowIfFailed(result);
 
-  ID3DBlob* pVertexShaderCodeIndirect = nullptr;
+  ID3DBlob *pVertexShaderCodeIndirect = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingCubesIndirect.vs",
-      (ID3D11DeviceChild**)m_pMarchingIndirectVertexShader.GetAddressOf(), {},
+      (ID3D11DeviceChild **)m_pMarchingIndirectVertexShader.GetAddressOf(), {},
       &pVertexShaderCodeIndirect);
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingIndirectVertexShader.Get(),
@@ -421,7 +418,7 @@ HRESULT SimRenderer::InitMarching() {
 
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingCubes.ps",
-      (ID3D11DeviceChild**)m_pMarchingPixelShader.GetAddressOf());
+      (ID3D11DeviceChild **)m_pMarchingPixelShader.GetAddressOf());
   DX::ThrowIfFailed(result);
   result =
       SetResourceName(m_pMarchingPixelShader.Get(), "MarchingCubesPixelShader");
@@ -429,7 +426,7 @@ HRESULT SimRenderer::InitMarching() {
 
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingCubes.cs",
-      (ID3D11DeviceChild**)m_pMarchingComputeShader.GetAddressOf());
+      (ID3D11DeviceChild **)m_pMarchingComputeShader.GetAddressOf());
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingComputeShader.Get(),
                            "MarchingCubesComputeShader");
@@ -437,7 +434,7 @@ HRESULT SimRenderer::InitMarching() {
 
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingPreprocess.cs",
-      (ID3D11DeviceChild**)m_pMarchingPreprocessCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pMarchingPreprocessCS.GetAddressOf());
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingPreprocessCS.Get(),
                            "MarchingCubesPreprocessShader");
@@ -445,7 +442,7 @@ HRESULT SimRenderer::InitMarching() {
 
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingClearVoxel.cs",
-      (ID3D11DeviceChild**)m_pMarchingClearCS.GetAddressOf());
+      (ID3D11DeviceChild **)m_pMarchingClearCS.GetAddressOf());
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingClearCS.Get(), "MarchingCubesClearCS");
   DX::ThrowIfFailed(result);
@@ -473,7 +470,7 @@ HRESULT SimRenderer::UpdatePhysGPU() {
   result = pContext->Map(m_pSphDataBuffer.Get(), 0, D3D11_MAP_READ_WRITE, 0,
                          &resource);
   DX::ThrowIfFailed(result);
-  Particle* particles = (Particle*)resource.pData;
+  Particle *particles = (Particle *)resource.pData;
   for (int i = 0; i < m_num_particles; i++) {
     particles[i].hash =
         m_sphAlgo.GetHash(m_sphAlgo.GetCell(particles[i].position));
@@ -481,7 +478,7 @@ HRESULT SimRenderer::UpdatePhysGPU() {
 
   auto start = std::chrono::high_resolution_clock::now();
   std::sort(particles, particles + m_num_particles,
-            [](Particle& a, Particle& b) { return a.hash < b.hash; });
+            [](Particle &a, Particle &b) { return a.hash < b.hash; });
   auto end = std::chrono::high_resolution_clock::now();
   m_sortTime =
       std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
@@ -491,8 +488,8 @@ HRESULT SimRenderer::UpdatePhysGPU() {
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
 
-  ID3D11Buffer* cb[1] = {m_pSphCB.Get()};
-  ID3D11UnorderedAccessView* uavBuffers[2] = {m_pSphBufferUAV.Get(),
+  ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
+  ID3D11UnorderedAccessView *uavBuffers[2] = {m_pSphBufferUAV.Get(),
                                               m_pHashBufferUAV.Get()};
 
   pContext->CSSetConstantBuffers(0, 1, cb);
@@ -517,7 +514,7 @@ HRESULT SimRenderer::UpdatePhysGPU() {
   pContext->Dispatch(groupNumber, 1, 1);
   pContext->End(m_pQuerySphPosition[m_frameNum % 2]);
 
-  ID3D11UnorderedAccessView* nullUavBuffers[2] = {NULL, NULL};
+  ID3D11UnorderedAccessView *nullUavBuffers[2] = {NULL, NULL};
   pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
 
   return result;
@@ -546,19 +543,17 @@ void SimRenderer::Update(float dt) {
   } else {
     UpdatePhysGPU();
     if (m_settings.marching) {
-      Vector3 len = Vector3(m_settings.cubeNum.x + 1, m_settings.cubeNum.y + 1,
-                            m_settings.cubeNum.z + 1) *
-                    m_settings.cubeLen;
-
-      UINT cubeNums =
-          len.x * len.y * len.z / pow(m_settings.marchingCubeWidth, 3) + 0.5f;
+      UINT cubeNums = m_settings.boundaryLen.x * m_settings.boundaryLen.y *
+                          m_settings.boundaryLen.z /
+                          pow(m_settings.marchingCubeWidth, 3) +
+                      0.5f;
 
       UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
 
-      ID3D11Buffer* cb[1] = {m_pSphCB.Get()};
+      ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
       pContext->CSSetConstantBuffers(0, 1, cb);
 
-      ID3D11UnorderedAccessView* uavBuffers1[1] = {m_pVoxelGridBufferUAV.Get()};
+      ID3D11UnorderedAccessView *uavBuffers1[1] = {m_pVoxelGridBufferUAV.Get()};
       pContext->CSSetUnorderedAccessViews(0, 1, uavBuffers1, nullptr);
 
       pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
@@ -566,7 +561,7 @@ void SimRenderer::Update(float dt) {
       pContext->Dispatch(groupNumber, 1, 1);
       pContext->End(m_pQueryMarchingClear[m_frameNum % 2]);
 
-      ID3D11ShaderResourceView* srvBuffers[1] = {m_pSphBufferSRV.Get()};
+      ID3D11ShaderResourceView *srvBuffers[1] = {m_pSphBufferSRV.Get()};
       pContext->CSSetShaderResources(0, 1, srvBuffers);
 
       pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
@@ -575,7 +570,7 @@ void SimRenderer::Update(float dt) {
       pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
 
       const UINT pCounters2[2] = {0, 0};
-      ID3D11UnorderedAccessView* uavBuffers2[2] = {
+      ID3D11UnorderedAccessView *uavBuffers2[2] = {
           m_pVoxelGridBufferUAV.Get(), m_pMarchingOutBufferUAV.Get()};
 
       pContext->CSSetUnorderedAccessViews(0, 2, uavBuffers2, pCounters2);
@@ -586,8 +581,8 @@ void SimRenderer::Update(float dt) {
       pContext->Dispatch(groupNumber, 1, 1);
       pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
 
-      ID3D11UnorderedAccessView* nullUavBuffers[2] = {NULL, NULL};
-      ID3D11ShaderResourceView* nullSrvs[1] = {NULL};
+      ID3D11UnorderedAccessView *nullUavBuffers[2] = {NULL, NULL};
+      ID3D11ShaderResourceView *nullSrvs[1] = {NULL};
       pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
       pContext->CSSetShaderResources(0, 1, nullSrvs);
 
@@ -603,8 +598,6 @@ void SimRenderer::ImGuiRender() {
   CollectTimestamps();
   ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
   ImGui::Text("Particles number: %d", m_num_particles);
-  ImGui::Text("Marching cube width: %0.2f * radius",
-              m_settings.marchingCubeWidth / m_settings.h);
 
   if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
     ImGui::Text("Frame time %f ms", ImGui::GetIO().DeltaTime * 1000.f);
@@ -623,6 +616,8 @@ void SimRenderer::ImGuiRender() {
   if (m_settings.marching) {
     if (ImGui::CollapsingHeader("Marching Cubes"),
         ImGuiTreeNodeFlags_DefaultOpen) {
+      ImGui::Text("Marching cube width: %0.2f * radius",
+                  m_settings.marchingCubeWidth / m_settings.h);
       ImGui::Text("Marching Clear: %.3f ms", m_marchingClear);
       ImGui::Text("Marching Preprocess: %.3f ms", m_marchingPrep);
       ImGui::Text("Marching Main: %.3f ms", m_marchingMain);
@@ -631,7 +626,7 @@ void SimRenderer::ImGuiRender() {
   ImGui::End();
 }
 
-void SimRenderer::Render(ID3D11Buffer* pSceneBuffer) {
+void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   if (m_settings.marching) {
     RenderMarching(pSceneBuffer);
   } else {
@@ -641,7 +636,7 @@ void SimRenderer::Render(ID3D11Buffer* pSceneBuffer) {
   m_frameNum++;
 }
 
-void SimRenderer::RenderMarching(ID3D11Buffer* pSceneBuffer) {
+void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   auto pContext = m_pDeviceResources->GetDeviceContext();
   auto pTransDepthState = m_pDeviceResources->GetTransDepthState();
   auto pTransBlendState = m_pDeviceResources->GetTransBlendState();
@@ -650,12 +645,12 @@ void SimRenderer::RenderMarching(ID3D11Buffer* pSceneBuffer) {
 
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   pContext->PSSetShader(m_pMarchingPixelShader.Get(), nullptr, 0);
-  ID3D11Buffer* cbuffers[] = {pSceneBuffer};
+  ID3D11Buffer *cbuffers[] = {pSceneBuffer};
   pContext->VSSetConstantBuffers(0, 1, cbuffers);
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
 
   if (m_settings.cpu) {
-    ID3D11Buffer* vertexBuffers[] = {m_pMarchingVertexBuffer.Get()};
+    ID3D11Buffer *vertexBuffers[] = {m_pMarchingVertexBuffer.Get()};
     UINT strides[] = {sizeof(Vector3)};
     UINT offsets[] = {0};
     pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
@@ -665,15 +660,15 @@ void SimRenderer::RenderMarching(ID3D11Buffer* pSceneBuffer) {
   } else {
     pContext->IASetInputLayout(nullptr);
     pContext->VSSetShader(m_pMarchingIndirectVertexShader.Get(), nullptr, 0);
-    ID3D11ShaderResourceView* srvs = {m_pMarchingOutBufferSRV.Get()};
+    ID3D11ShaderResourceView *srvs = {m_pMarchingOutBufferSRV.Get()};
     pContext->VSSetShaderResources(0, 1, &srvs);
     pContext->DrawInstancedIndirect(m_pCountBuffer.Get(), 0);
-    ID3D11ShaderResourceView* nullSRV[1] = {NULL};
+    ID3D11ShaderResourceView *nullSRV[1] = {NULL};
     pContext->VSSetShaderResources(0, 1, nullSRV);
   }
 }
 
-void SimRenderer::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
+void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {
   auto pContext = m_pDeviceResources->GetDeviceContext();
   pContext->OMSetDepthStencilState(m_pDeviceResources->GetDepthState(), 0);
   pContext->OMSetBlendState(m_pDeviceResources->GetOpaqueBlendState(), nullptr,
@@ -681,7 +676,7 @@ void SimRenderer::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
 
   pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-  ID3D11Buffer* vertexBuffers[] = {m_pVertexBuffer};
+  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};
   UINT strides[] = {sizeof(Vector3)};
   UINT offsets[] = {0, 0};
   pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
@@ -691,11 +686,12 @@ void SimRenderer::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
   pContext->VSSetShader(m_pVertexShader, nullptr, 0);
   pContext->PSSetShader(m_pPixelShader, nullptr, 0);
 
-  ID3D11Buffer* cbuffers[1] = {pSceneBuffer};
+  ID3D11Buffer *cbuffers[1] = {pSceneBuffer};
   pContext->VSSetConstantBuffers(0, 1, cbuffers);
-  ID3D11ShaderResourceView* srvs[1] = {m_pSphBufferSRV.Get()};
+  ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
   pContext->VSSetShaderResources(0, 1, srvs);
 
+  cbuffers[0] = m_pSphCB.Get();
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
   pContext->DrawIndexedInstanced(m_sphereIndexCount, m_particles.size(), 0, 0,
                                  0);
