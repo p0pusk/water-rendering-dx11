@@ -9,7 +9,7 @@ HRESULT CubeMap::InitCubemap() {
   if (SUCCEEDED(result)) {
     result = DirectX::CreateDDSTextureFromFileEx(
         m_pDeviceResources->GetDevice(), m_pDeviceResources->GetDeviceContext(),
-        L"../Common/station.dds", 0, D3D11_USAGE_IMMUTABLE,
+        L"Common/station.dds", 0, D3D11_USAGE_IMMUTABLE,
         D3D11_BIND_SHADER_RESOURCE, 0, D3D11_RESOURCE_MISC_TEXTURECUBE,
         DirectX::DDS_LOADER_DEFAULT, nullptr, &m_pCubemapView);
   }
@@ -95,12 +95,12 @@ HRESULT CubeMap::Init() {
   ID3DBlob* pSphereVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
     result = m_pDeviceResources->CompileAndCreateShader(
-        L"../shaders/SphereTexture.vs", (ID3D11DeviceChild**)&m_pVertexShader,
-        {}, &pSphereVertexShaderCode);
+        L"shaders/SphereTexture.vs", (ID3D11DeviceChild**)&m_pVertexShader, {},
+        &pSphereVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
     result = m_pDeviceResources->CompileAndCreateShader(
-        L"../shaders/SphereTexture.ps", (ID3D11DeviceChild**)&m_pPixelShader);
+        L"shaders/SphereTexture.ps", (ID3D11DeviceChild**)&m_pPixelShader);
   }
 
   if (SUCCEEDED(result)) {

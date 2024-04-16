@@ -1,4 +1,4 @@
-#include "../shaders/Sph.h"
+#include "shaders/Sph.h"
 
 RWStructuredBuffer<int> voxel_grid : register(u0);
 

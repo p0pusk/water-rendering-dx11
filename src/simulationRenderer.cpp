@@ -1,6 +1,7 @@
 #include "simulationRenderer.h"
 
 #include <algorithm>
+#include <chrono>
 #include <exception>
 #include <iostream>
 #include <iterator>
@@ -48,8 +49,20 @@ HRESULT SimRenderer::Init() {
   desc.Query = D3D11_QUERY_TIMESTAMP;
   pDevice->CreateQuery(&desc, &m_pQuerySphStart[0]);
   pDevice->CreateQuery(&desc, &m_pQuerySphStart[1]);
-  pDevice->CreateQuery(&desc, &m_pQuerySphEnd[0]);
-  pDevice->CreateQuery(&desc, &m_pQuerySphEnd[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphClear[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphClear[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphCopy[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphCopy[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphHash[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphHash[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphDensity[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphDensity[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphPressure[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphPressure[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphForces[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphForces[1]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphPosition[0]);
+  pDevice->CreateQuery(&desc, &m_pQuerySphPosition[1]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingStart[0]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingStart[1]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingClear[0]);
@@ -78,6 +91,7 @@ HRESULT SimRenderer::InitSph() {
     m_sphCB.dynamicViscosity = m_settings.dynamicViscosity;
     m_sphCB.dampingCoeff = m_settings.dampingCoeff;
     m_sphCB.marchingCubeWidth = m_settings.marchingCubeWidth;
+    m_sphCB.hashTableTime = m_settings.TABLE_SIZE;
     m_sphCB.dt.x = 1.f / 120.f;
 
     D3D11_SUBRESOURCE_DATA data = {};
@@ -126,7 +140,7 @@ HRESULT SimRenderer::InitSph() {
     data.pSysMem = m_hash_table.data();
 
     hr = m_pDeviceResources->CreateStructuredBuffer<UINT>(
-        TABLE_SIZE, D3D11_USAGE_DEFAULT, 0, &data, "HashBuffer",
+        m_settings.TABLE_SIZE, D3D11_USAGE_DEFAULT, 0, &data, "HashBuffer",
         &m_pHashBuffer);
     DX::ThrowIfFailed(hr);
   }
@@ -134,48 +148,47 @@ HRESULT SimRenderer::InitSph() {
   // create Hash UAV
   {
     hr = m_pDeviceResources->CreateBufferUAV(
-        m_pHashBuffer.Get(), TABLE_SIZE, (D3D11_BUFFER_UAV_FLAG)0,
+        m_pHashBuffer.Get(), m_settings.TABLE_SIZE, (D3D11_BUFFER_UAV_FLAG)0,
         "HashBufferUAV", &m_pHashBufferUAV);
     DX::ThrowIfFailed(hr);
   }
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/SphClearTable.cs",
+      L"shaders/SphClearTable.cs",
       (ID3D11DeviceChild**)m_pClearTableCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pClearTableCS.Get(), "ClearTableShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/SphCreateTable.cs",
+      L"shaders/SphCreateTable.cs",
       (ID3D11DeviceChild**)m_pTableCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pTableCS.Get(), "TableComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/SphDensity.cs",
+      L"shaders/SphDensity.cs",
       (ID3D11DeviceChild**)m_pDensityCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pDensityCS.Get(), "DensityComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/SphPressure.cs",
+      L"shaders/SphPressure.cs",
       (ID3D11DeviceChild**)m_pPressureCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pPressureCS.Get(), "PressureComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/SphForces.cs",
-      (ID3D11DeviceChild**)m_pForcesCS.GetAddressOf());
+      L"shaders/SphForces.cs", (ID3D11DeviceChild**)m_pForcesCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pForcesCS.Get(), "ForcesComputeShader");
   DX::ThrowIfFailed(hr);
 
   hr = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/SphPositions.cs",
+      L"shaders/SphPositions.cs",
       (ID3D11DeviceChild**)m_pPositionsCS.GetAddressOf());
   DX::ThrowIfFailed(hr);
   hr = SetResourceName(m_pPositionsCS.Get(), "PositionsComputeShader");
@@ -252,12 +265,12 @@ HRESULT SimRenderer::InitSpheres() {
 
   ID3DBlob* pVertexShaderCode = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/ParticleInstance.vs", (ID3D11DeviceChild**)&m_pVertexShader,
-      {}, &pVertexShaderCode);
+      L"shaders/ParticleInstance.vs", (ID3D11DeviceChild**)&m_pVertexShader, {},
+      &pVertexShaderCode);
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/ParticleInstance.ps", (ID3D11DeviceChild**)&m_pPixelShader);
+      L"shaders/ParticleInstance.ps", (ID3D11DeviceChild**)&m_pPixelShader);
   DX::ThrowIfFailed(result);
 
   result = pDevice->CreateInputLayout(
@@ -388,7 +401,7 @@ HRESULT SimRenderer::InitMarching() {
 
   ID3DBlob* pVertexShaderCode = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/MarchingCubes.vs",
+      L"shaders/MarchingCubes.vs",
       (ID3D11DeviceChild**)m_pMarchingVertexShader.GetAddressOf(), {},
       &pVertexShaderCode);
   DX::ThrowIfFailed(result);
@@ -398,7 +411,7 @@ HRESULT SimRenderer::InitMarching() {
 
   ID3DBlob* pVertexShaderCodeIndirect = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/MarchingCubesIndirect.vs",
+      L"shaders/MarchingCubesIndirect.vs",
       (ID3D11DeviceChild**)m_pMarchingIndirectVertexShader.GetAddressOf(), {},
       &pVertexShaderCodeIndirect);
   DX::ThrowIfFailed(result);
@@ -407,7 +420,7 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/MarchingCubes.ps",
+      L"shaders/MarchingCubes.ps",
       (ID3D11DeviceChild**)m_pMarchingPixelShader.GetAddressOf());
   DX::ThrowIfFailed(result);
   result =
@@ -415,7 +428,7 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/MarchingCubes.cs",
+      L"shaders/MarchingCubes.cs",
       (ID3D11DeviceChild**)m_pMarchingComputeShader.GetAddressOf());
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingComputeShader.Get(),
@@ -423,7 +436,7 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/MarchingPreprocess.cs",
+      L"shaders/MarchingPreprocess.cs",
       (ID3D11DeviceChild**)m_pMarchingPreprocessCS.GetAddressOf());
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingPreprocessCS.Get(),
@@ -431,7 +444,7 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   result = m_pDeviceResources->CompileAndCreateShader(
-      L"../shaders/MarchingClearVoxel.cs",
+      L"shaders/MarchingClearVoxel.cs",
       (ID3D11DeviceChild**)m_pMarchingClearCS.GetAddressOf());
   DX::ThrowIfFailed(result);
   result = SetResourceName(m_pMarchingClearCS.Get(), "MarchingCubesClearCS");
@@ -455,6 +468,7 @@ HRESULT SimRenderer::UpdatePhysGPU() {
   HRESULT result = S_OK;
   auto pContext = m_pDeviceResources->GetDeviceContext();
 
+  pContext->End(m_pQuerySphStart[m_frameNum % 2]);
   D3D11_MAPPED_SUBRESOURCE resource;
   result = pContext->Map(m_pSphDataBuffer.Get(), 0, D3D11_MAP_READ_WRITE, 0,
                          &resource);
@@ -465,10 +479,15 @@ HRESULT SimRenderer::UpdatePhysGPU() {
         m_sphAlgo.GetHash(m_sphAlgo.GetCell(particles[i].position));
   }
 
+  auto start = std::chrono::high_resolution_clock::now();
   std::sort(particles, particles + m_num_particles,
             [](Particle& a, Particle& b) { return a.hash < b.hash; });
+  auto end = std::chrono::high_resolution_clock::now();
+  m_sortTime =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
   pContext->Unmap(m_pSphDataBuffer.Get(), 0);
+  pContext->End(m_pQuerySphCopy[m_frameNum % 2]);
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
 
@@ -480,19 +499,23 @@ HRESULT SimRenderer::UpdatePhysGPU() {
   pContext->CSSetUnorderedAccessViews(0, 2, uavBuffers, nullptr);
 
   pContext->CSSetShader(m_pClearTableCS.Get(), nullptr, 0);
-  pContext->End(m_pQuerySphStart[m_frameNum % 2]);
   pContext->Dispatch(groupNumber, 1, 1);
+  pContext->End(m_pQuerySphClear[m_frameNum % 2]);
   pContext->CSSetShader(m_pTableCS.Get(), nullptr, 0);
   pContext->Dispatch(groupNumber, 1, 1);
+  pContext->End(m_pQuerySphHash[m_frameNum % 2]);
   pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
   pContext->Dispatch(groupNumber, 1, 1);
+  pContext->End(m_pQuerySphDensity[m_frameNum % 2]);
   pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
   pContext->Dispatch(groupNumber, 1, 1);
+  pContext->End(m_pQuerySphPressure[m_frameNum % 2]);
   pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
   pContext->Dispatch(groupNumber, 1, 1);
+  pContext->End(m_pQuerySphForces[m_frameNum % 2]);
   pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
   pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphEnd[m_frameNum % 2]);
+  pContext->End(m_pQuerySphPosition[m_frameNum % 2]);
 
   ID3D11UnorderedAccessView* nullUavBuffers[2] = {NULL, NULL};
   pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
@@ -578,23 +601,43 @@ void SimRenderer::Update(float dt) {
 void SimRenderer::ImGuiRender() {
   ImGui::Begin("Simulation");
   CollectTimestamps();
+  ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
   ImGui::Text("Particles number: %d", m_num_particles);
   ImGui::Text("Marching cube width: %0.2f * radius",
               m_settings.marchingCubeWidth / m_settings.h);
-  ImGui::Text("SPH: %.10f ms", m_sphTime);
-  ImGui::Text("Marching Clear: %.3f ms", m_marchingClear);
-  ImGui::Text("Marching Preprocess: %.3f ms", m_marchingPrep);
-  ImGui::Text("Marching Main: %.3f ms", m_marchingMain);
+
+  if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Frame time %f ms", ImGui::GetIO().DeltaTime * 1000.f);
+    ImGui::Text("Sph pass: %.3f ms", m_sphOverallTime);
+  }
+  if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Copy time: %f ms", m_sphCopyTime);
+    ImGui::Text("Sort time: %.3f ms", m_sortTime / 1000000.f);
+    ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
+    ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
+    ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
+    ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
+    ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
+    ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
+  }
+  if (m_settings.marching) {
+    if (ImGui::CollapsingHeader("Marching Cubes"),
+        ImGuiTreeNodeFlags_DefaultOpen) {
+      ImGui::Text("Marching Clear: %.3f ms", m_marchingClear);
+      ImGui::Text("Marching Preprocess: %.3f ms", m_marchingPrep);
+      ImGui::Text("Marching Main: %.3f ms", m_marchingMain);
+    }
+  }
   ImGui::End();
 }
 
 void SimRenderer::Render(ID3D11Buffer* pSceneBuffer) {
-  ImGuiRender();
   if (m_settings.marching) {
     RenderMarching(pSceneBuffer);
   } else {
     RenderSpheres(pSceneBuffer);
   }
+  ImGuiRender();
   m_frameNum++;
 }
 
@@ -632,8 +675,8 @@ void SimRenderer::RenderMarching(ID3D11Buffer* pSceneBuffer) {
 
 void SimRenderer::RenderSpheres(ID3D11Buffer* pSceneBuffer) {
   auto pContext = m_pDeviceResources->GetDeviceContext();
-  pContext->OMSetDepthStencilState(m_pDeviceResources->GetTransDepthState(), 0);
-  pContext->OMSetBlendState(m_pDeviceResources->GetTransBlendState(), nullptr,
+  pContext->OMSetDepthStencilState(m_pDeviceResources->GetDepthState(), 0);
+  pContext->OMSetBlendState(m_pDeviceResources->GetOpaqueBlendState(), nullptr,
                             0xffffffff);
 
   pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
@@ -672,12 +715,26 @@ void SimRenderer::CollectTimestamps() {
 
   // Get all the timestamps
   UINT64 tsMarchingBegin, tsMarchingClear, tsMarchingPreproc, tsMarchingMain,
-      tsSphStart, tsSphEnd;
+      tsSphStart, tsSphClear, tsSphHash, tsSphDensity, tsSphPressure,
+      tsSphForces, tsSphPosition, tsSphCopy;
 
   pContext->GetData(m_pQuerySphStart[m_frameNum % 2 + 1], &tsSphStart,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphEnd[m_frameNum % 2 + 1], &tsSphEnd,
+  pContext->GetData(m_pQuerySphCopy[m_frameNum % 2 + 1], &tsSphCopy,
                     sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphClear[m_frameNum % 2 + 1], &tsSphClear,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphHash[m_frameNum % 2 + 1], &tsSphHash,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphDensity[m_frameNum % 2 + 1], &tsSphDensity,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphPressure[m_frameNum % 2 + 1], &tsSphPressure,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphForces[m_frameNum % 2 + 1], &tsSphForces,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphPosition[m_frameNum % 2 + 1], &tsSphPosition,
+                    sizeof(UINT64), 0);
+
   pContext->GetData(m_pQueryMarchingStart[m_frameNum % 2 + 1], &tsMarchingBegin,
                     sizeof(UINT64), 0);
   pContext->GetData(m_pQueryMarchingClear[m_frameNum % 2 + 1], &tsMarchingClear,
@@ -688,8 +745,22 @@ void SimRenderer::CollectTimestamps() {
                     sizeof(UINT64), 0);
 
   // Convert to real time
-  m_sphTime =
-      float(tsSphEnd - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphCopyTime =
+      float(tsSphCopy - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphClearTime =
+      float(tsSphClear - tsSphCopy) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphCreateHashTime =
+      float(tsSphHash - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphDensityTime =
+      float(tsSphDensity - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
+                      float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphForcesTime = float(tsSphForces - tsSphPressure) /
+                    float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPositionsTime = float(tsSphPosition - tsSphForces) /
+                       float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphOverallTime =
+      float(tsSphPosition - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
   m_marchingClear = float(tsMarchingClear - tsMarchingBegin) /
                     float(tsDisjoint.Frequency) * 1000.0f;
   m_marchingPrep = float(tsMarchingPreproc - tsMarchingClear) /

@@ -68,13 +68,13 @@ HRESULT Water::Init(UINT boxWidth) {
 
   ID3DBlob *pSmallSphereVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(L"../shaders/MarchingCubes.vs",
-                                    (ID3D11DeviceChild **)&m_pVertexShader, {},
-                                    &pSmallSphereVertexShaderCode);
+    result = m_pDeviceResources->CompileAndCreateShader(
+        L"shaders/MarchingCubes.vs", (ID3D11DeviceChild **)&m_pVertexShader, {},
+        &pSmallSphereVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(L"../shaders/MarchingCubes.ps",
-                                    (ID3D11DeviceChild **)&m_pPixelShader);
+    result = m_pDeviceResources->CompileAndCreateShader(
+        L"shaders/MarchingCubes.ps", (ID3D11DeviceChild **)&m_pPixelShader);
   }
 
   if (SUCCEEDED(result)) {
@@ -97,16 +97,17 @@ void Water::Update(float dt) {
   m_heightfield->Update(dt);
 
   m_heightfield->GetRenderData(m_vertecies, m_indecies);
-  pContext->UpdateSubresource(m_pVertexBuffer, 0, nullptr,
-                                              m_vertecies.data(), 0, 0);
-  pContext->UpdateSubresource(m_pIndexBuffer, 0, nullptr,
-                                              m_indecies.data(), 0, 0);
+  pContext->UpdateSubresource(m_pVertexBuffer, 0, nullptr, m_vertecies.data(),
+                              0, 0);
+  pContext->UpdateSubresource(m_pIndexBuffer, 0, nullptr, m_indecies.data(), 0,
+                              0);
 }
 
 void Water::Render(ID3D11Buffer *pSceneBuffer) {
   auto pContext = m_pDeviceResources->GetDeviceContext();
   pContext->OMSetDepthStencilState(m_pDeviceResources->GetDepthState(), 0);
-  pContext->OMSetBlendState(m_pDeviceResources->GetTransBlendState(), nullptr, 0xffffffff);
+  pContext->OMSetBlendState(m_pDeviceResources->GetTransBlendState(), nullptr,
+                            0xffffffff);
 
   pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
   ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};

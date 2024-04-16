@@ -1,4 +1,4 @@
-#include "../shaders/SceneCB.h"
+#include "shaders/SceneCB.h"
 
 struct Particle
 {
@@ -35,7 +35,7 @@ VSOutput vs(VSInput vertex)
     result.pos = mul(vp, float4(particles[vertex.instanceID].position + vertex.pos, 1));
     result.worldPos = particles[vertex.instanceID].position;
     float c = clamp(0.25, 1, log10(particles[vertex.instanceID].density - 7));
-    result.color = c * float4(0.1, 0.5, 1, 0.1);
+    result.color = float4(0.1, 0.5, 1, 1);
 
     return result;
 }

@@ -1,4 +1,4 @@
-#include "../shaders/Sph.h"
+#include "shaders/Sph.h"
 
 RWStructuredBuffer<Particle> particles : register(u0);
 RWStructuredBuffer<uint> grid : register(u1);
@@ -40,24 +40,16 @@ void CheckBoundary(in uint index)
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]
-void cs(uint3 globalThreadId : SV_DispatchThreadID)
+void cs(uint3 DTid : SV_DispatchThreadID)
 {
-    uint partition = ceil((float) particlesNum / GROUPS_NUM / BLOCK_SIZE);
-
-    uint startIndex = globalThreadId.x * partition;
-    uint endIndex = (globalThreadId.x + 1) * partition;
-    if (endIndex > particlesNum)
+    if (DTid.x >= particlesNum)
     {
-        endIndex = particlesNum;
+      return;
     }
 
-  // TimeStep
-    for (uint p = startIndex; p < endIndex; p++)
-    {
-        particles[p].velocity += dt.x * (particles[p].pressureGrad + particles[p].force.xyz + particles[p].viscosity.xyz) / particles[p].density;
-        particles[p].position += dt.x * particles[p].velocity;
+    particles[DTid.x].velocity += dt.x * (particles[DTid.x].pressureGrad + particles[DTid.x].force.xyz + particles[DTid.x].viscosity.xyz) / particles[DTid.x].density;
+    particles[DTid.x].position += dt.x * particles[DTid.x].velocity;
 
     // boundary condition
-        CheckBoundary(p);
-    }
+    CheckBoundary(DTid.x);
 }

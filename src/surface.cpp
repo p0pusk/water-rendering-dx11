@@ -66,12 +66,12 @@ HRESULT Surface::Init(Vector3 pos) {
   ID3DBlob *pRectVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
     result = m_pDeviceResources->CompileAndCreateShader(
-        L"../shaders/Surface.vs", (ID3D11DeviceChild **)&m_pVertexShader, {},
+        L"shaders/Surface.vs", (ID3D11DeviceChild **)&m_pVertexShader, {},
         &pRectVertexShaderCode);
   }
   if (SUCCEEDED(result)) {
     result = m_pDeviceResources->CompileAndCreateShader(
-        L"../shaders/Surface.ps", (ID3D11DeviceChild **)&m_pPixelShader,
+        L"shaders/Surface.ps", (ID3D11DeviceChild **)&m_pPixelShader,
         {"NO_LIGHTS"}, {});
   }
 

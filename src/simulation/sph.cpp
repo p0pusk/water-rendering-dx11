@@ -11,11 +11,11 @@ Sph::Sph(const Settings& settings) : m_settings(settings) {
 
 UINT Sph::GetHash(XMINT3 cell) {
   return ((cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791)) %
-         TABLE_SIZE;
+         m_settings.TABLE_SIZE;
 }
 
 XMINT3 Sph::GetCell(Vector3 position) {
-  auto res = (position + m_settings.pos) / m_settings.h;
+  auto res = (position - m_settings.pos) / m_settings.h;
   return XMINT3(res.x, res.y, res.z);
 }
 
@@ -23,7 +23,7 @@ void Sph::Init(std::vector<Particle>& particles) {
   const float& h = m_settings.h;
   const XMINT3& cubeNum = m_settings.cubeNum;
   float separation = h - 0.01f;
-  Vector3 offset = {h, 5 * h, h};
+  Vector3 offset = {h, h, h};
 
   particles.resize(cubeNum.x * cubeNum.y * cubeNum.z);
 

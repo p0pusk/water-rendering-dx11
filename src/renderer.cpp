@@ -226,13 +226,6 @@ bool Renderer::Update() {
   return SUCCEEDED(result);
 }
 
-void Renderer::ImGuiRender() {
-  ImGui::Begin("test");
-  ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-              1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-  ImGui::End();
-}
-
 bool Renderer::Render() {
   auto deviceContext = m_pDeviceResources->GetDeviceContext();
   deviceContext->ClearState();
@@ -271,7 +264,6 @@ bool Renderer::Render() {
   ImGui_ImplWin32_NewFrame();
   ImGui::NewFrame();
 
-  ImGuiRender();
   try {
     m_pSurface->Render(m_pSceneBuffer);
   } catch (std::exception& e) {

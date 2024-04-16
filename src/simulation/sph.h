@@ -22,6 +22,4 @@ class Sph {
   float h2;
   float spikyGrad;
   float spikyLap;
-
-  static const UINT TABLE_SIZE = 262144;
 };

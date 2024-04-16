@@ -1,4 +1,4 @@
-#include "../shaders/Sph.h"
+#include "shaders/Sph.h"
 
 /*
            (5)-------(6)

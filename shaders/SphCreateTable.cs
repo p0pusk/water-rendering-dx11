@@ -1,17 +1,8 @@
-#include "../shaders/Sph.h"
+#include "shaders/Sph.h"
 
 RWStructuredBuffer<Particle> particles : register(u0);
 RWStructuredBuffer<uint> grid : register(u1);
 
-uint GetHash(in uint3 cell)
-{
-    return ((uint) (cell.x * 73856093) ^ (uint) (cell.y * 19349663) ^ (uint) (cell.z * 83492791)) % TABLE_SIZE;
-}
-
-uint3 GetCell(in float3 position)
-{
-    return floor((position + worldPos) / h);
-}
 
 void CreateTable(uint start, uint end)
 {
@@ -25,6 +16,7 @@ void CreateTable(uint start, uint end)
         uint currHash = particles[i].hash;
         uint original;
         InterlockedMin(grid[currHash], i, original);
+        particles[i].density = 0;
     }
 }
 

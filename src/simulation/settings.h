@@ -3,16 +3,17 @@
 #include "pch.h"
 
 struct Settings {
-  Vector3 pos = Vector3::Zero;
-  XMINT3 cubeNum = XMINT3(20, 20, 20);
-  float cubeLen = 0.20f;
+  Vector3 pos = Vector3(-1, 0, -1);
+  XMINT3 cubeNum = XMINT3(20, 30, 10);
+  float cubeLen = 0.10001f;
   float h = 0.1f;
-  float mass = 0.02f;
-  float dynamicViscosity = 1.1f;
-  float particleRadius = h;
+  float mass = 0.2f;
+  float dynamicViscosity = 0.f;
+  float particleRadius = h / 2;
   float dampingCoeff = 0.5f;
-  float marchingCubeWidth = h / 1;
+  float marchingCubeWidth = h / 2;
   UINT blockSize = 1024;
   bool cpu = false;
-  bool marching = true;
+  bool marching = false;
+  const static UINT TABLE_SIZE = 271000;
 };

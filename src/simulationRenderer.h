@@ -48,7 +48,8 @@ struct SphCB {
   float dynamicViscosity;
   float dampingCoeff;
   float marchingCubeWidth;
-  Vector3 dt;
+  UINT hashTableTime;
+  Vector2 dt;
 };
 
 class SimRenderer : Primitive {
@@ -57,7 +58,6 @@ class SimRenderer : Primitive {
   std::vector<UINT> m_hash_table;
   UINT m_num_particles;
   int n = 0;
-  static const UINT TABLE_SIZE = 262144;
 
   SimRenderer() = delete;
   SimRenderer(SimRenderer const& s) = delete;
@@ -65,7 +65,7 @@ class SimRenderer : Primitive {
   SimRenderer(std::shared_ptr<DX::DeviceResources> dxController,
               const Settings& props)
       : Primitive(dxController),
-        m_hash_table(TABLE_SIZE, NO_PARTICLE),
+        m_hash_table(m_settings.TABLE_SIZE, NO_PARTICLE),
         m_num_particles(props.cubeNum.x * props.cubeNum.y * props.cubeNum.z),
         m_settings(props),
         m_marchingCubesAlgo(props, m_particles),
@@ -121,16 +121,31 @@ class SimRenderer : Primitive {
 
   ID3D11Query* m_pQueryDisjoint[2];
   ID3D11Query* m_pQuerySphStart[2];
-  ID3D11Query* m_pQuerySphEnd[2];
+  ID3D11Query* m_pQuerySphCopy[2];
+  ID3D11Query* m_pQuerySphClear[2];
+  ID3D11Query* m_pQuerySphHash[2];
+  ID3D11Query* m_pQuerySphDensity[2];
+  ID3D11Query* m_pQuerySphPressure[2];
+  ID3D11Query* m_pQuerySphForces[2];
+  ID3D11Query* m_pQuerySphPosition[2];
   ID3D11Query* m_pQueryMarchingStart[2];
   ID3D11Query* m_pQueryMarchingClear[2];
   ID3D11Query* m_pQueryMarchingPreprocess[2];
   ID3D11Query* m_pQueryMarchingMain[2];
 
   float m_sphTime;
+  float m_sphCopyTime;
+  float m_sphClearTime;
+  float m_sphCreateHashTime;
+  float m_sphDensityTime;
+  float m_sphPressureTime;
+  float m_sphForcesTime;
+  float m_sphPositionsTime;
+  float m_sphOverallTime;
   float m_marchingClear;
   float m_marchingPrep;
   float m_marchingMain;
+  float m_sortTime;
   UINT m_frameNum = 1;
 
   HRESULT InitSph();

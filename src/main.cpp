@@ -1,5 +1,6 @@
 #include <cmath>
 #include <numbers>
+#include <string>
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #define UNICODE
@@ -93,14 +94,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                    LPSTR lpCmdLine, int nShowCmd) {
   // Fix working folder
-  // std::wstring dir;
-  // dir.resize(MAX_PATH + 1);
-  // GetCurrentDirectory(MAX_PATH + 1, &dir[0]);
-  // size_t configPos = dir.find(L"build/bin/Debug");
-  // if (configPos != std::wstring::npos) {
-  //   dir.resize(configPos);
-  //   SetCurrentDirectory(dir.c_str());
-  // }
+  std::wstring dir;
+  dir.resize(MAX_PATH + 1);
+  GetCurrentDirectory(MAX_PATH + 1, &dir[0]);
+  size_t configPos = dir.find(L"build");
+  if (configPos != std::wstring::npos) {
+    dir.resize(configPos);
+    SetCurrentDirectory(dir.c_str());
+  }
 
   // Open a window
   HWND hwnd;

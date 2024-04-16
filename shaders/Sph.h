@@ -8,7 +8,8 @@ cbuffer SphCB : register(b0) {
   float dynamicViscosity;
   float dampingCoeff;
   float marchingWidth;
-  float3 dt;
+  uint g_tableSize;
+  float2 dt;
 };
 
 struct Particle {
@@ -21,11 +22,11 @@ struct Particle {
   float3 velocity;
   uint hash;
 };
+
 static const uint BLOCK_SIZE = 1024;
 static const uint GROUPS_NUM = ceil(particlesNum / (float)BLOCK_SIZE);
 
 static const uint NO_PARTICLE = 0xFFFFFFFF;
-static const uint TABLE_SIZE = 262144;
 
 static const float PI = 3.14159265f;
 static const float poly6 = 315.0f / (64.0f * PI * pow(h, 9));

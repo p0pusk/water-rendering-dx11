@@ -1,4 +1,4 @@
-#include "../shaders/Sph.h"
+#include "shaders/Sph.h"
 
 RWStructuredBuffer<Particle> particles : register(u0);
 RWStructuredBuffer<uint> grid : register(u1);

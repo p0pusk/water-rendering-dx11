@@ -1,4 +1,4 @@
-#include "../shaders/Sph.h"
+#include "shaders/Sph.h"
 
 StructuredBuffer<Particle> particles : register(t0);
 RWStructuredBuffer<int> voxel_grid : register(u0);
@@ -25,7 +25,7 @@ void update_grid(uint start, uint end)
 
     for (int p = start; p < end; ++p)
     {
-        int3 localPos = round(particles[p].position / marchingWidth - worldPos);
+      int3 localPos = round((particles[p].position - worldPos) / marchingWidth);
         int radius = ceil(h / 2 / marchingWidth);
         for (int i = -radius; i <= radius; ++i)
         {
