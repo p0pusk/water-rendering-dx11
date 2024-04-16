@@ -153,8 +153,8 @@ void Sph::CheckBoundary(Particle &p) {
     p.velocity.x = -p.velocity.x * dampingCoeff;
   }
 
-  if (p.position.z < h) {
-    localPos.z = -p.position.z + 2 * h;
+  if (localPos.z < h) {
+    localPos.z = -localPos.z + 2 * h;
     p.velocity.z = -p.velocity.z * dampingCoeff;
   }
 
