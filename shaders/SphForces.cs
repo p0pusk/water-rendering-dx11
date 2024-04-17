@@ -47,7 +47,7 @@ void cs(uint3 GTid : SV_DispatchThreadID)
 
                         if (d < h)
                         {
-                            particles[GTid.x].pressureGrad += dir * mass * (particles[GTid.x].pressure + particles[index].pressure) / (2 * particles[index].density) * spikyGrad * pow(h - d, 2);
+                            particles[GTid.x].pressureGrad += -dir * mass * (particles[GTid.x].pressure + particles[index].pressure) / (2 * particles[index].density) * spikyGrad * pow(h - d, 2);
 
                             particles[GTid.x].viscosity += dynamicViscosity * mass * float4(particles[index].velocity - particles[GTid.x].velocity, 0) / particles[index].density * spikyLap * (h - d);
                         }

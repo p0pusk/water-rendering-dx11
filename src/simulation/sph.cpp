@@ -22,7 +22,7 @@ XMINT3 Sph::GetCell(Vector3 position) {
 void Sph::Init(std::vector<Particle> &particles) {
   const float &h = m_settings.h;
   const XMINT3 &cubeNum = m_settings.initCube;
-  float separation = h - 0.01f;
+  float separation = h - 0.8f * h;
   Vector3 offset = {h, h, h};
 
   particles.resize(cubeNum.x * cubeNum.y * cubeNum.z);
@@ -108,7 +108,7 @@ void Sph::Update(float dt, std::vector<Particle> &particles) {
             dir.Normalize();
             if (d < h) {
               p.pressureGrad +=
-                  dir * m_settings.mass * (p.pressure + it->second->pressure) /
+                  -dir * m_settings.mass * (p.pressure + it->second->pressure) /
                   (2 * it->second->density) * spikyGrad * std::pow(h - d, 2);
               p.viscosity += m_settings.dynamicViscosity * m_settings.mass *
                              Vector4(it->second->velocity - p.velocity) /

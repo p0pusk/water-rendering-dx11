@@ -320,7 +320,7 @@ AppendStructuredBuffer<Triangle> triangles : register(u1);
 
 bool voxel_get(in uint x, in uint y, in uint z)
 {
-    uint3 num = ceil(boundaryLen / marchingWidth);
+    uint3 num = ceil(boundaryLen / marchingWidth) + uint3(1, 1, 1);
     return voxel_grid[x + y * num.x + z * num.x * num.y];
 }
 
@@ -384,8 +384,7 @@ void march_cube(in uint3 pos)
 
 void march(in uint index)
 {
-    float3 len = boundaryLen;
-    uint3 num = ceil(len / marchingWidth);
+    uint3 num = ceil(boundaryLen / marchingWidth) + uint3(1, 1, 1);
     uint x = index % num.x;
     uint y = (index / num.x) % num.y;
     uint z = (index / num.x) / num.y;

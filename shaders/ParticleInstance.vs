@@ -25,7 +25,7 @@ struct VSOutput
 {
     float4 pos : SV_Position;
     float3 worldPos : POSITION;
-    float3 centerPos : PARTICLE_POS;
+    uint particleIndex : ParticleIndex;
 };
 
 VSOutput vs(VSInput vertex)
@@ -34,7 +34,7 @@ VSOutput vs(VSInput vertex)
 
     result.pos = mul(vp, float4(particles[vertex.instanceID].position + vertex.pos, 1));
     result.worldPos = particles[vertex.instanceID].position + vertex.pos;
-    result.centerPos = particles[vertex.instanceID].position;
+    result.particleIndex = vertex.instanceID;
 
     return result;
 }

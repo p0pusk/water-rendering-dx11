@@ -317,7 +317,7 @@ HRESULT SimRenderer::InitMarching() {
 
     result =
         SetResourceName(m_pMarchingVertexBuffer.Get(), "MarchingVertexBuffer");
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Failed to create vertex buffer");
   }
 
   // create out buffer
@@ -331,7 +331,7 @@ HRESULT SimRenderer::InitMarching() {
     desc.StructureByteStride = sizeof(MarchingOutBuffer);
 
     result = pDevice->CreateBuffer(&desc, nullptr, &m_pMarchingOutBuffer);
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Foiled in out buffer");
     result = SetResourceName(m_pMarchingOutBuffer.Get(), "MarchingOutBuffer");
     DX::ThrowIfFailed(result);
   }
@@ -383,7 +383,7 @@ HRESULT SimRenderer::InitMarching() {
     desc.StructureByteStride = sizeof(int);
 
     result = pDevice->CreateBuffer(&desc, nullptr, &m_pVoxelGridBuffer);
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Failed in voxel buffer");
     result = SetResourceName(m_pVoxelGridBuffer.Get(), "VoxelGridBuffer");
     DX::ThrowIfFailed(result);
   }
@@ -692,6 +692,7 @@ void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {
   pContext->VSSetShaderResources(0, 1, srvs);
 
   cbuffers[0] = m_pSphCB.Get();
+  pContext->PSSetShaderResources(0, 1, srvs);
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
   pContext->DrawIndexedInstanced(m_sphereIndexCount, m_particles.size(), 0, 0,
                                  0);
