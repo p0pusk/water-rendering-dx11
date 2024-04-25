@@ -30,3 +30,11 @@ static const float poly6 = 315.0f / (64.0f * PI * pow(h, 9));
 static const float spikyGrad = -45.0f / (PI * pow(h, 6));
 static const float spikyLap = 45.0f / (PI * pow(h, 6));
 static const float h2 = pow(h, 2);
+
+uint GetHash(in uint3 cell) {
+  return ((uint)(cell.x * 73856093) ^ (uint)(cell.y * 19349663) ^
+          (uint)(cell.z * 83492791)) %
+         g_tableSize;
+}
+
+uint3 GetCell(in float3 position) { return floor((position - worldPos) / h); }

@@ -12,7 +12,7 @@ struct VSOutput
 float4 ps(VSOutput pixel) : SV_Target0
 {
     float min = 30.f;
-    float max = 8000.f;
+    float max = 3000.f;
     float t = smoothstep(min, max, particles[pixel.particleIndex].density);
     float3 mix = lerp(float3(0, 0.9, 1), float3(0, 0, 1), t);
 

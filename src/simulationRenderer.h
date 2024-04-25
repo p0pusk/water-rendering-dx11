@@ -28,6 +28,10 @@ struct MarchingIndirectBuffer {
   UINT startInstanceLocation = 0;
 };
 
+struct SurfaceBuffer {
+  UINT counter;
+};
+
 struct MarchingOutBuffer {
   Vector3 v1;
   Vector3 v2;
@@ -102,6 +106,7 @@ private:
   ComPtr<ID3D11ShaderResourceView> m_pMarchingOutBufferSRV;
   ComPtr<ID3D11PixelShader> m_pMarchingPixelShader;
   ComPtr<ID3D11ComputeShader> m_pMarchingComputeShader;
+  ComPtr<ID3D11ComputeShader> m_pSurfaceCountCS;
   ComPtr<ID3D11Buffer> m_pVoxelGridBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pVoxelGridBufferUAV;
   ComPtr<ID3D11Buffer> m_pCountBuffer;
@@ -113,9 +118,12 @@ private:
   SphCB m_sphCB;
   MarchingIndirectBuffer m_MarchingIndirectBuffer;
   ComPtr<ID3D11Buffer> m_pSphCB;
+  ComPtr<ID3D11Buffer> m_pSurfaceBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pSphBufferUAV;
   ComPtr<ID3D11Buffer> m_pHashBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pHashBufferUAV;
+  ComPtr<ID3D11UnorderedAccessView> m_pSurfaceBufferUAV;
+  ComPtr<ID3D11ShaderResourceView> m_pHashBufferSRV;
   ComPtr<ID3D11ShaderResourceView> m_pSphBufferSRV;
 
   ID3D11Query *m_pQueryDisjoint[2];

@@ -91,7 +91,7 @@ HRESULT SimRenderer::InitSph() {
     m_sphCB.dampingCoeff = m_settings.dampingCoeff;
     m_sphCB.marchingCubeWidth = m_settings.marchingCubeWidth;
     m_sphCB.hashTableSize = m_settings.TABLE_SIZE;
-    m_sphCB.dt.x = 1.f / 120.f;
+    m_sphCB.dt.x = 1.f / 160.f;
 
     D3D11_SUBRESOURCE_DATA data = {};
     data.pSysMem = &m_sphCB;
@@ -149,6 +149,14 @@ HRESULT SimRenderer::InitSph() {
     hr = m_pDeviceResources->CreateBufferUAV(
         m_pHashBuffer.Get(), m_settings.TABLE_SIZE, (D3D11_BUFFER_UAV_FLAG)0,
         "HashBufferUAV", &m_pHashBufferUAV);
+    DX::ThrowIfFailed(hr);
+  }
+
+  // create Hash SRV
+  {
+    hr = m_pDeviceResources->CreateBufferSRV(
+        m_pHashBuffer.Get(), m_settings.TABLE_SIZE, "HashBufferSRV",
+        &m_pHashBufferSRV);
     DX::ThrowIfFailed(hr);
   }
 
@@ -300,8 +308,8 @@ HRESULT SimRenderer::InitMarching() {
   UINT cubeNums = std::ceil(
       m_settings.boundaryLen.x * m_settings.boundaryLen.y *
       m_settings.boundaryLen.z / pow(m_settings.marchingCubeWidth, 3));
-  // UINT max_n = cubeNums * 5;
-  UINT max_n = 125.f * 1024.f * 1024.f / (4 * 3);
+  UINT max_n = cubeNums * 6;
+  // UINT max_n = 125.f * 1024.f * 1024.f / (4 * 3);
 
   // Create vertex buffer
   {
@@ -397,6 +405,32 @@ HRESULT SimRenderer::InitMarching() {
     DX::ThrowIfFailed(result, "Failed in voxel UAV");
   }
 
+  // create surface buffer
+  {
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = sizeof(SurfaceBuffer);
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    desc.StructureByteStride = sizeof(SurfaceBuffer);
+
+    DX::ThrowIfFailed(m_pDeviceResources->GetDevice()->CreateBuffer(
+                          &desc, nullptr, &m_pSurfaceBuffer),
+                      "Failed to create surfaceBuffer");
+
+    DX::ThrowIfFailed(SetResourceName(m_pSurfaceBuffer.Get(), "SurfaceBuffer"),
+                      "Failed to set SurfaceBuffer resource name");
+  }
+
+  // create surface buffer UAV
+  {
+    result = m_pDeviceResources->CreateBufferUAV(
+        m_pSurfaceBuffer.Get(), 1, (D3D11_BUFFER_UAV_FLAG)0, "SurfaceBufferUAV",
+        &m_pSurfaceBufferUAV);
+    DX::ThrowIfFailed(result, "Failed in surface UAV");
+  }
+
   ID3DBlob *pVertexShaderCode = nullptr;
   result = m_pDeviceResources->CompileAndCreateShader(
       L"shaders/MarchingCubes.vs",
@@ -448,6 +482,13 @@ HRESULT SimRenderer::InitMarching() {
   result = SetResourceName(m_pMarchingClearCS.Get(), "MarchingCubesClearCS");
   DX::ThrowIfFailed(result);
 
+  result = m_pDeviceResources->CompileAndCreateShader(
+      L"shaders/SurfaceCounter.cs",
+      (ID3D11DeviceChild **)m_pSurfaceCountCS.GetAddressOf());
+  DX::ThrowIfFailed(result);
+  result = SetResourceName(m_pSurfaceCountCS.Get(), "SurfaceCountCS");
+  DX::ThrowIfFailed(result);
+
   result = pDevice->CreateInputLayout(
       InputDesc, ARRAYSIZE(InputDesc), pVertexShaderCode->GetBufferPointer(),
       pVertexShaderCode->GetBufferSize(), &m_pMarchingInputLayout);
@@ -458,6 +499,18 @@ HRESULT SimRenderer::InitMarching() {
 
   SAFE_RELEASE(pVertexShaderCode);
   SAFE_RELEASE(pVertexShaderCodeIndirect);
+
+  assert(1);
+  auto pContext = m_pDeviceResources->GetDeviceContext();
+  pContext->CSSetShader(m_pSurfaceCountCS.Get(), nullptr, 0);
+  ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
+  pContext->CSSetShaderResources(0, 1, srvs);
+  ID3D11UnorderedAccessView *uavs[1] = {m_pSurfaceBufferUAV.Get()};
+  pContext->CSSetUnorderedAccessViews(0, 1, uavs, 0);
+  ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
+  pContext->CSSetConstantBuffers(0, 1, cb);
+  UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
+  pContext->Dispatch(groupNumber, 1, 1);
 
   return result;
 }
@@ -544,10 +597,9 @@ void SimRenderer::Update(float dt) {
   } else {
     UpdatePhysGPU();
     if (m_settings.marching) {
-      UINT cubeNums = m_settings.boundaryLen.x * m_settings.boundaryLen.y *
-                          m_settings.boundaryLen.z /
-                          pow(m_settings.marchingCubeWidth, 3) +
-                      0.5f;
+      UINT cubeNums = std::ceil(
+          m_settings.boundaryLen.x * m_settings.boundaryLen.y *
+          m_settings.boundaryLen.z / pow(m_settings.marchingCubeWidth, 3));
 
       UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
 
@@ -562,8 +614,9 @@ void SimRenderer::Update(float dt) {
       pContext->Dispatch(groupNumber, 1, 1);
       pContext->End(m_pQueryMarchingClear[m_frameNum % 2]);
 
-      ID3D11ShaderResourceView *srvBuffers[1] = {m_pSphBufferSRV.Get()};
-      pContext->CSSetShaderResources(0, 1, srvBuffers);
+      ID3D11ShaderResourceView *srvBuffers[2] = {m_pSphBufferSRV.Get(),
+                                                 m_pHashBufferSRV.Get()};
+      pContext->CSSetShaderResources(0, 2, srvBuffers);
 
       pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
       // groupNumber = DivUp(m_num_particles, m_settings.blockSize);
@@ -583,9 +636,9 @@ void SimRenderer::Update(float dt) {
       pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
 
       ID3D11UnorderedAccessView *nullUavBuffers[2] = {NULL, NULL};
-      ID3D11ShaderResourceView *nullSrvs[1] = {NULL};
+      ID3D11ShaderResourceView *nullSrvs[2] = {NULL, NULL};
       pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
-      pContext->CSSetShaderResources(0, 1, nullSrvs);
+      pContext->CSSetShaderResources(0, 2, nullSrvs);
 
       pContext->CopyStructureCount(m_pCountBuffer.Get(), sizeof(UINT),
                                    m_pMarchingOutBufferUAV.Get());
