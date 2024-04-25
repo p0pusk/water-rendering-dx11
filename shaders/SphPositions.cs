@@ -55,7 +55,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
       return;
     }
 
-    particles[DTid.x].velocity += dt.x * (particles[DTid.x].pressureGrad + particles[DTid.x].force.xyz + particles[DTid.x].viscosity.xyz) / particles[DTid.x].density;
+    particles[DTid.x].velocity += dt.x * particles[DTid.x].force / particles[DTid.x].density;
     particles[DTid.x].position += dt.x * particles[DTid.x].velocity;
 
     // boundary condition

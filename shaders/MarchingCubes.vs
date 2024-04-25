@@ -23,7 +23,7 @@ VSOutput vs(VSInput vertex)
     result.worldPos = vertex.pos;
     float c = abs(0.05 - vertex.pos.y) * 100;
     // result.color = lerp(float4(0, 0.25, 0.75, 0.5), float4(1, 0, 0, 1), c);
-    result.color = float4(0.2, 0.85, 0.95, 0.1);
+    result.color = float4(0.2, 0.85, 0.95, 0.8);
 
     return result;
 }

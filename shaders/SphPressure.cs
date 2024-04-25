@@ -5,20 +5,11 @@ RWStructuredBuffer<uint> grid : register(u1);
 
 
 [numthreads(BLOCK_SIZE, 1, 1)]
-void cs(uint3 globalThreadId : SV_DispatchThreadID)
+void cs(uint3 GTid : SV_DispatchThreadID)
 {
-    uint partition = ceil((float) particlesNum / GROUPS_NUM / BLOCK_SIZE);
-    uint startIndex = globalThreadId.x * partition;
-    uint endIndex = (globalThreadId.x + 1) * partition;
-    if (endIndex > particlesNum)
-    {
-        endIndex = particlesNum;
-    }
+    if (GTid.x >= particlesNum) return;
 
-    for (uint i = startIndex; i < endIndex; i++)
-    {
-        float k = 1;
-        float p0 = 1000;
-        particles[i].pressure = k * (particles[i].density - p0);
-    }
+    float k = 1;
+    float p0 = 1000;
+    particles[GTid.x].pressure = k * (particles[GTid.x].density - p0);
 }

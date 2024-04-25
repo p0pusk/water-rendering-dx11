@@ -5,18 +5,18 @@
 
 #include "pch.h"
 
-HRESULT DX::DeviceResources::Init(const HWND& hWnd) {
+HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
   HRESULT result;
 
   // Create a DirectX graphics interface factory.
-  IDXGIFactory* pFactory = nullptr;
-  result = CreateDXGIFactory(__uuidof(IDXGIFactory), (void**)&pFactory);
+  IDXGIFactory *pFactory = nullptr;
+  result = CreateDXGIFactory(__uuidof(IDXGIFactory), (void **)&pFactory);
   assert(SUCCEEDED(result));
 
   // Select hardware adapter
-  IDXGIAdapter* pSelectedAdapter = nullptr;
+  IDXGIAdapter *pSelectedAdapter = nullptr;
   {
-    IDXGIAdapter* pAdapter = nullptr;
+    IDXGIAdapter *pAdapter = nullptr;
     UINT adapterIdx = 0;
     while (SUCCEEDED(pFactory->EnumAdapters(adapterIdx, &pAdapter))) {
       DXGI_ADAPTER_DESC desc;
@@ -40,7 +40,7 @@ HRESULT DX::DeviceResources::Init(const HWND& hWnd) {
     UINT flags = 0;
 #ifdef _DEBUG
     flags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif  // _DEBUG
+#endif // _DEBUG
     result = D3D11CreateDevice(pSelectedAdapter, D3D_DRIVER_TYPE_UNKNOWN, NULL,
                                flags, levels, 1, D3D11_SDK_VERSION, &m_pDevice,
                                &level, &m_pDeviceContext);
@@ -186,7 +186,7 @@ HRESULT DX::DeviceResources::Init(const HWND& hWnd) {
 
 #ifdef _DEBUG
   // result = DXGIGetDebugInterface(0, &m_debugDev);
-#endif  // _DEBUG
+#endif // _DEBUG
 
   return SUCCEEDED(result);
 }
@@ -214,10 +214,10 @@ bool DX::DeviceResources::Resize(UINT w, UINT h) {
 }
 
 HRESULT DX::DeviceResources::CompileAndCreateShader(
-    const std::wstring& path, ID3D11DeviceChild** ppShader,
-    const std::vector<std::string>& defines, ID3DBlob** ppCode) {
+    const std::wstring &path, ID3D11DeviceChild **ppShader,
+    const std::vector<std::string> &defines, ID3DBlob **ppCode) {
   // Try to load shader's source code first
-  FILE* pFile = nullptr;
+  FILE *pFile = nullptr;
   _wfopen_s(&pFile, path.c_str(), L"rb");
   assert(pFile != nullptr);
   if (pFile == nullptr) {
@@ -257,7 +257,7 @@ HRESULT DX::DeviceResources::CompileAndCreateShader(
   UINT flags1 = 0;
 #ifdef _DEBUG
   flags1 |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif  // _DEBUG
+#endif // _DEBUG
 
   D3DInclude includeHandler;
 
@@ -271,14 +271,14 @@ HRESULT DX::DeviceResources::CompileAndCreateShader(
   shaderDefines.back().Definition = nullptr;
 
   // Try to compile
-  ID3DBlob* pCode = nullptr;
-  ID3DBlob* pErrMsg = nullptr;
+  ID3DBlob *pCode = nullptr;
+  ID3DBlob *pErrMsg = nullptr;
   HRESULT result =
       D3DCompile(data.data(), data.size(), WCSToMBS(path).c_str(),
                  shaderDefines.data(), &includeHandler, entryPoint.c_str(),
                  platform.c_str(), flags1, 0, &pCode, &pErrMsg);
   if (!SUCCEEDED(result) && pErrMsg != nullptr) {
-    OutputDebugStringA((const char*)pErrMsg->GetBufferPointer());
+    OutputDebugStringA((const char *)pErrMsg->GetBufferPointer());
   }
   assert(SUCCEEDED(result));
   SAFE_RELEASE(pErrMsg);
@@ -286,7 +286,7 @@ HRESULT DX::DeviceResources::CompileAndCreateShader(
   // Create shader itself if anything else is OK
   if (SUCCEEDED(result)) {
     if (ext == L"vs") {
-      ID3D11VertexShader* pVertexShader = nullptr;
+      ID3D11VertexShader *pVertexShader = nullptr;
       result = m_pDevice->CreateVertexShader(pCode->GetBufferPointer(),
                                              pCode->GetBufferSize(), nullptr,
                                              &pVertexShader);
@@ -294,7 +294,7 @@ HRESULT DX::DeviceResources::CompileAndCreateShader(
         *ppShader = pVertexShader;
       }
     } else if (ext == L"ps") {
-      ID3D11PixelShader* pPixelShader = nullptr;
+      ID3D11PixelShader *pPixelShader = nullptr;
       result = m_pDevice->CreatePixelShader(pCode->GetBufferPointer(),
                                             pCode->GetBufferSize(), nullptr,
                                             &pPixelShader);
@@ -302,7 +302,7 @@ HRESULT DX::DeviceResources::CompileAndCreateShader(
         *ppShader = pPixelShader;
       }
     } else if (ext == L"cs") {
-      ID3D11ComputeShader* pComputeShader = nullptr;
+      ID3D11ComputeShader *pComputeShader = nullptr;
       result = m_pDevice->CreateComputeShader(pCode->GetBufferPointer(),
                                               pCode->GetBufferSize(), nullptr,
                                               &pComputeShader);
@@ -325,9 +325,9 @@ HRESULT DX::DeviceResources::CompileAndCreateShader(
 }
 
 HRESULT DX::DeviceResources::SetupBackBuffer() {
-  ID3D11Texture2D* pBackBuffer = nullptr;
+  ID3D11Texture2D *pBackBuffer = nullptr;
   HRESULT result = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
-                                           (LPVOID*)&pBackBuffer);
+                                           (LPVOID *)&pBackBuffer);
   if (SUCCEEDED(result)) {
     result = m_pDevice->CreateRenderTargetView(pBackBuffer, NULL,
                                                m_pBackBufferRTV.GetAddressOf());

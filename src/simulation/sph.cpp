@@ -22,7 +22,7 @@ XMINT3 Sph::GetCell(Vector3 position) {
 void Sph::Init(std::vector<Particle> &particles) {
   const float &h = m_settings.h;
   const XMINT3 &cubeNum = m_settings.initCube;
-  float separation = h - 0.8f * h;
+  float separation = h - 0.1f * h;
   Vector3 offset = {h, h, h};
 
   particles.resize(cubeNum.x * cubeNum.y * cubeNum.z);
@@ -91,9 +91,9 @@ void Sph::Update(float dt, std::vector<Particle> &particles) {
 
   // Compute pressure force
   for (auto &p : particles) {
-    p.pressureGrad = Vector3::Zero;
-    p.force = Vector4(0, -9.8f * p.density, 0, 0);
-    p.viscosity = Vector4::Zero;
+    Vector3 pressureGrad = Vector3::Zero;
+    Vector3 force = Vector3(0, -9.8f * p.density, 0);
+    Vector3 viscosity = Vector3::Zero;
 
     for (int i = -1; i <= 1; i++) {
       for (int j = -1; j <= 1; j++) {
@@ -107,26 +107,26 @@ void Sph::Update(float dt, std::vector<Particle> &particles) {
             Vector3 dir = (p.position - it->second->position);
             dir.Normalize();
             if (d < h) {
-              p.pressureGrad +=
+              pressureGrad +=
                   -dir * m_settings.mass * (p.pressure + it->second->pressure) /
                   (2 * it->second->density) * spikyGrad * std::pow(h - d, 2);
-              p.viscosity += m_settings.dynamicViscosity * m_settings.mass *
-                             Vector4(it->second->velocity - p.velocity) /
-                             it->second->density * spikyLap *
-                             (m_settings.h - d);
+              viscosity += m_settings.dynamicViscosity * m_settings.mass *
+                           (it->second->velocity - p.velocity) /
+                           it->second->density * spikyLap * (m_settings.h - d);
             }
             it++;
           }
         }
       }
     }
+
+    p.force = pressureGrad + force + viscosity;
   }
 
   // TimeStep
   for (auto &p : particles) {
-    p.velocity +=
-        dt * (p.pressureGrad + Vector3(p.force + p.viscosity)) / p.density;
-    p.position += dt * Vector3(p.velocity);
+    p.velocity += dt * p.force / p.density;
+    p.position += dt * p.velocity;
 
     // boundary condition
     CheckBoundary(p);

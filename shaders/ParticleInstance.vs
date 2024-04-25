@@ -4,10 +4,8 @@ struct Particle
 {
     float3 position;
     float density;
-    float3 pressureGrad;
     float pressure;
-    float4 viscosity;
-    float4 force;
+    float3 force;
     float3 velocity;
     uint hash;
 };

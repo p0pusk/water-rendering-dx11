@@ -22,24 +22,28 @@ void cs(uint3 GTid : SV_DispatchThreadID)
     }
 
   // Compute pressure force
-    particles[GTid.x].pressureGrad = float3(0, 0, 0);
-    particles[GTid.x].force = float4(0.f, -9.8f * particles[GTid.x].density, 0, 0);
-    particles[GTid.x].viscosity = float4(0, 0, 0, 0);
-    for (int i = -1; i <= 1; i++)
+    float3 pressureGrad = float3(0, 0, 0);
+    float3 force = float3(0.f, -9.8f * particles[GTid.x].density, 0);
+    float3 viscosity = float3(0, 0, 0);
+    int i, j, k;
+    float3 localPos, dir;
+    uint key, index;
+    float d;
+    for (i = -1; i <= 1; i++)
     {
-        for (int j = -1; j <= 1; j++)
+        for (j = -1; j <= 1; j++)
         {
-            for (int k = -1; k <= 1; k++)
+            for (k = -1; k <= 1; k++)
             {
-                float3 localPos = particles[GTid.x].position + float3(i, j, k) * h;
-                uint key = GetHash(GetCell(localPos));
-                uint index = grid[key];
+                localPos = particles[GTid.x].position + float3(i, j, k) * h;
+                key = GetHash(GetCell(localPos));
+                index = grid[key];
                 if (index != NO_PARTICLE)
                 {
                     while (key == particles[index].hash && index < particlesNum)
                     {
-                        float d = distance(particles[GTid.x].position, particles[index].position);
-                        float3 dir = normalize(particles[GTid.x].position - particles[index].position);
+                        d = distance(particles[GTid.x].position, particles[index].position);
+                        dir = normalize(particles[GTid.x].position - particles[index].position);
                         if (d == 0.f)
                         {
                             dir = float3(0, 0, 0);
@@ -47,9 +51,9 @@ void cs(uint3 GTid : SV_DispatchThreadID)
 
                         if (d < h)
                         {
-                            particles[GTid.x].pressureGrad += -dir * mass * (particles[GTid.x].pressure + particles[index].pressure) / (2 * particles[index].density) * spikyGrad * pow(h - d, 2);
+                            pressureGrad += -dir * mass * (particles[GTid.x].pressure + particles[index].pressure) / (2 * particles[index].density) * spikyGrad * pow(h - d, 2);
 
-                            particles[GTid.x].viscosity += dynamicViscosity * mass * float4(particles[index].velocity - particles[GTid.x].velocity, 0) / particles[index].density * spikyLap * (h - d);
+                            viscosity += dynamicViscosity * mass * (particles[index].velocity - particles[GTid.x].velocity) / particles[index].density * spikyLap * (h - d);
                         }
                         ++index;
                     }
@@ -57,4 +61,6 @@ void cs(uint3 GTid : SV_DispatchThreadID)
             }
         }
     }
+
+    particles[GTid.x].force = force + pressureGrad + viscosity;
 }

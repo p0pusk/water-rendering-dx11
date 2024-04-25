@@ -14,23 +14,25 @@ uint3 GetCell(in float3 position) {
 
 void update(in uint pId)
 {
-    particles[pId].density = 0;
+    float density = 0;
+    uint hash, index;
+    float d;
     for (int i = -1; i <= 1; i++)
     {
         for (int j = -1; j <= 1; j++)
         {
             for (int k = -1; k <= 1; k++)
             {
-                uint hash = GetHash(GetCell(particles[pId].position + float3(i, j, k) * h));
-                uint index = grid[hash];
+                hash = GetHash(GetCell(particles[pId].position + float3(i, j, k) * h));
+                index = grid[hash];
                 if (index != NO_PARTICLE)
                 {
                     while (hash == particles[index].hash && index < particlesNum)
                     {
-                        float d = distance(particles[index].position, particles[pId].position);
+                        d = distance(particles[index].position, particles[pId].position);
                         if (d < h)
                         {
-                            particles[pId].density += mass * poly6 * pow(h2 - d * d, 3);
+                            density += mass * poly6 * pow(h2 - d * d, 3);
                         }
                         ++index;
                     }
@@ -38,6 +40,7 @@ void update(in uint pId)
             }
         }
     }
+    particles[pId].density = density;
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]

@@ -300,7 +300,8 @@ HRESULT SimRenderer::InitMarching() {
   UINT cubeNums = std::ceil(
       m_settings.boundaryLen.x * m_settings.boundaryLen.y *
       m_settings.boundaryLen.z / pow(m_settings.marchingCubeWidth, 3));
-  UINT max_n = cubeNums * 16;
+  // UINT max_n = cubeNums * 5;
+  UINT max_n = 125.f * 1024.f * 1024.f / (4 * 3);
 
   // Create vertex buffer
   {
@@ -331,7 +332,7 @@ HRESULT SimRenderer::InitMarching() {
     desc.StructureByteStride = sizeof(MarchingOutBuffer);
 
     result = pDevice->CreateBuffer(&desc, nullptr, &m_pMarchingOutBuffer);
-    DX::ThrowIfFailed(result, "Foiled in out buffer");
+    DX::ThrowIfFailed(result, "Failed in out buffer");
     result = SetResourceName(m_pMarchingOutBuffer.Get(), "MarchingOutBuffer");
     DX::ThrowIfFailed(result);
   }
@@ -341,7 +342,7 @@ HRESULT SimRenderer::InitMarching() {
     result = m_pDeviceResources->CreateBufferUAV(
         m_pMarchingOutBuffer.Get(), max_n, D3D11_BUFFER_UAV_FLAG_APPEND,
         "MarchingOutUAV", &m_pMarchingOutBufferUAV);
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Failed in UAV");
   }
 
   // create out buffer srv
@@ -349,7 +350,7 @@ HRESULT SimRenderer::InitMarching() {
     result = m_pDeviceResources->CreateBufferSRV(m_pMarchingOutBuffer.Get(),
                                                  max_n, "MarchingOutSRV",
                                                  &m_pMarchingOutBufferSRV);
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Failed in SRV");
   }
 
   // create counter buffer
@@ -367,7 +368,7 @@ HRESULT SimRenderer::InitMarching() {
     data.SysMemPitch = sizeof(MarchingIndirectBuffer);
 
     result = pDevice->CreateBuffer(&desc, &data, &m_pCountBuffer);
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Failed in indirect buffer");
     result = SetResourceName(m_pCountBuffer.Get(), "CountBuffer");
     DX::ThrowIfFailed(result);
   }
@@ -393,7 +394,7 @@ HRESULT SimRenderer::InitMarching() {
     result = m_pDeviceResources->CreateBufferUAV(
         m_pVoxelGridBuffer.Get(), cubeNums, (D3D11_BUFFER_UAV_FLAG)0,
         "VoxelGridUAV", &m_pVoxelGridBufferUAV);
-    DX::ThrowIfFailed(result);
+    DX::ThrowIfFailed(result, "Failed in voxel UAV");
   }
 
   ID3DBlob *pVertexShaderCode = nullptr;
@@ -565,7 +566,7 @@ void SimRenderer::Update(float dt) {
       pContext->CSSetShaderResources(0, 1, srvBuffers);
 
       pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
-      groupNumber = DivUp(m_num_particles, m_settings.blockSize);
+      // groupNumber = DivUp(m_num_particles, m_settings.blockSize);
       pContext->Dispatch(groupNumber, 1, 1);
       pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
 

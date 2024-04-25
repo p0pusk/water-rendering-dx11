@@ -11,10 +11,11 @@ void CreateTable(uint start, uint end)
         end = particlesNum;
     }
 
+    uint currHash, original;
     for (uint i = start; i < end; i++)
     {
-        uint currHash = particles[i].hash;
-        uint original;
+        currHash = particles[i].hash;
+        original;
         InterlockedMin(grid[currHash], i, original);
         particles[i].density = 0;
     }
