@@ -1,9 +1,8 @@
-#include "simulation/sph-gpu.h"
+#include "sph-gpu.h"
+
 #include "device-resources.h"
 #include "pch.h"
 #include "utils.h"
-#include <exception>
-#include <execution>
 #include <iostream>
 
 void SphGpu::Init(const std::vector<Particle> &particles) {
@@ -107,7 +106,7 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
 }
 
 void SphGpu::CreateQueries() {
-  auto pDevice = DX::DeviceResources::getInstance().m_pDevice;
+  auto pDevice = DeviceResources::getInstance().m_pDevice;
   D3D11_QUERY_DESC desc{};
   desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
   desc.MiscFlags = 0;
@@ -133,7 +132,7 @@ void SphGpu::CreateQueries() {
 }
 
 void SphGpu::Update() {
-  auto pContext = DX::DeviceResources::getInstance().m_pDeviceContext;
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
   pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
 
   pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());

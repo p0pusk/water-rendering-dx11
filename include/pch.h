@@ -108,12 +108,6 @@ inline void ThrowIfFailed(HRESULT hr, const std::string &message = "") {
     }                                                                          \
   }
 
-inline HRESULT SetResourceName(ID3D11DeviceChild *pResource,
-                               const std::string &name) {
-  return pResource->SetPrivateData(WKPDID_D3DDebugObjectName,
-                                   (UINT)name.length(), name.c_str());
-}
-
 inline std::wstring Extension(const std::wstring &filename) {
   size_t dotPos = filename.rfind(L'.');
   if (dotPos != std::wstring::npos) {

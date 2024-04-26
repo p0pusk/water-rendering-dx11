@@ -16,5 +16,6 @@ struct Settings {
   UINT blockSize = 1024;
   bool cpu = false;
   bool marching = true;
+  float dt = 1.f / 160.f;
   const static UINT TABLE_SIZE = 2710000;
 };

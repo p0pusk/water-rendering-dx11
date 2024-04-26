@@ -1,23 +1,28 @@
-#include "CubeMap.h"
+#include "cubemap.h"
 
 #include "DDSTextureLoader.h"
-#include "pch.h"
+#include "utils.h"
+#include <iostream>
 
 HRESULT CubeMap::InitCubemap() {
   HRESULT result = S_OK;
 
+  auto dxResources = DeviceResources::getInstance();
+  auto pDevice = dxResources.m_pDevice;
+  auto pContext = dxResources.m_pDeviceContext;
+
   if (SUCCEEDED(result)) {
     result = DirectX::CreateDDSTextureFromFileEx(
-        m_pDeviceResources->GetDevice(), m_pDeviceResources->GetDeviceContext(),
-        L"Common/station.dds", 0, D3D11_USAGE_IMMUTABLE,
-        D3D11_BIND_SHADER_RESOURCE, 0, D3D11_RESOURCE_MISC_TEXTURECUBE,
-        DirectX::DDS_LOADER_DEFAULT, nullptr, &m_pCubemapView);
+        pDevice.Get(), pContext.Get(), L"Common/station.dds", 0,
+        D3D11_USAGE_IMMUTABLE, D3D11_BIND_SHADER_RESOURCE, 0,
+        D3D11_RESOURCE_MISC_TEXTURECUBE, DirectX::DDS_LOADER_DEFAULT, nullptr,
+        &m_pCubemapView);
   }
 
   assert(SUCCEEDED(result));
 
   if (SUCCEEDED(result)) {
-    result = SetResourceName(m_pCubemapView, "CubemapView");
+    result = DX::SetResourceName(m_pCubemapView.Get(), "CubemapView");
   }
 
   return result;
@@ -29,7 +34,7 @@ HRESULT CubeMap::Init() {
        D3D11_INPUT_PER_VERTEX_DATA, 0}};
 
   HRESULT result = S_OK;
-  auto pDevice = m_pDeviceResources->GetDevice();
+  auto pDevice = DeviceResources::getInstance().m_pDevice;
 
   static const size_t SphereSteps = 32;
 
@@ -39,14 +44,15 @@ HRESULT CubeMap::Init() {
   size_t indexCount;
   size_t vertexCount;
 
-  GetSphereDataSize(SphereSteps, SphereSteps, indexCount, vertexCount);
+  DX::GetSphereDataSize(SphereSteps, SphereSteps, indexCount, vertexCount);
 
   sphereVertices.resize(vertexCount);
   indices.resize(indexCount);
 
-  m_sphereIndexCount = (UINT)indexCount;
+  m_sphereIndexCount = indexCount;
 
-  CreateSphere(SphereSteps, SphereSteps, indices.data(), sphereVertices.data());
+  DX::CreateSphere(SphereSteps, SphereSteps, indices.data(),
+                   sphereVertices.data());
 
   // Create vertex buffer
   if (SUCCEEDED(result)) {
@@ -66,7 +72,7 @@ HRESULT CubeMap::Init() {
     result = pDevice->CreateBuffer(&desc, &data, &m_pVertexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pVertexBuffer, "SphereVertexBuffer");
+      result = DX::SetResourceName(m_pVertexBuffer.Get(), "SphereVertexBuffer");
     }
   }
 
@@ -88,28 +94,27 @@ HRESULT CubeMap::Init() {
     result = pDevice->CreateBuffer(&desc, &data, &m_pIndexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pIndexBuffer, "SphereIndexBuffer");
+      result = DX::SetResourceName(m_pIndexBuffer.Get(), "SphereIndexBuffer");
     }
   }
 
-  ID3DBlob* pSphereVertexShaderCode = nullptr;
-  if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(
-        L"shaders/SphereTexture.vs", (ID3D11DeviceChild**)&m_pVertexShader, {},
+  ID3DBlob *pSphereVertexShaderCode = nullptr;
+  try {
+    DX::CompileAndCreateShader(
+        L"shaders/SphereTexture.vs",
+        (ID3D11DeviceChild **)m_pVertexShader.GetAddressOf(), {},
         &pSphereVertexShaderCode);
-  }
-  if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(
-        L"shaders/SphereTexture.ps", (ID3D11DeviceChild**)&m_pPixelShader);
+    DX::CompileAndCreateShader(
+        L"shaders/SphereTexture.ps",
+        (ID3D11DeviceChild **)m_pPixelShader.GetAddressOf());
+  } catch (...) {
+    throw;
   }
 
   if (SUCCEEDED(result)) {
     result = pDevice->CreateInputLayout(
         InputDesc, 1, pSphereVertexShaderCode->GetBufferPointer(),
         pSphereVertexShaderCode->GetBufferSize(), &m_pInputLayout);
-    if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pInputLayout, "SphereInputLayout");
-    }
   }
 
   SAFE_RELEASE(pSphereVertexShaderCode);
@@ -137,7 +142,7 @@ HRESULT CubeMap::Init() {
     result = pDevice->CreateBuffer(&desc, &data, &m_pGeomBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pGeomBuffer, "SphereGeomBuffer");
+      result = DX::SetResourceName(m_pGeomBuffer.Get(), "SphereGeomBuffer");
     }
   }
 
@@ -146,31 +151,32 @@ HRESULT CubeMap::Init() {
   return result;
 }
 
-void CubeMap::Render(ID3D11Buffer* pSceneBuffer) {
-  auto pContext = m_pDeviceResources->GetDeviceContext();
-  auto pSampler = m_pDeviceResources->GetSampler();
-  auto pDepthState = m_pDeviceResources->GetDepthState();
+void CubeMap::Render(ID3D11Buffer *pSceneBuffer) {
+  auto dxResources = DeviceResources::getInstance();
+  auto pContext = dxResources.m_pDeviceContext;
+  auto pSampler = dxResources.m_pSampler;
+  auto pDepthState = dxResources.m_pDepthState;
 
-  ID3D11SamplerState* samplers[] = {pSampler};
+  ID3D11SamplerState *samplers[] = {pSampler.Get()};
   pContext->PSSetSamplers(0, 1, samplers);
 
-  ID3D11ShaderResourceView* resources[] = {m_pCubemapView};
+  ID3D11ShaderResourceView *resources[] = {m_pCubemapView.Get()};
   pContext->PSSetShaderResources(0, 1, resources);
 
-  pContext->OMSetDepthStencilState(pDepthState, 0);
+  pContext->OMSetDepthStencilState(pDepthState.Get(), 0);
 
-  pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-  ID3D11Buffer* vertexBuffers[] = {m_pVertexBuffer};
+  pContext->IASetIndexBuffer(m_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer.Get()};
   UINT strides[] = {12};
   UINT offsets[] = {0};
   pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
-  pContext->IASetInputLayout(m_pInputLayout);
+  pContext->IASetInputLayout(m_pInputLayout.Get());
 
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  pContext->VSSetShader(m_pVertexShader, nullptr, 0);
-  pContext->PSSetShader(m_pPixelShader, nullptr, 0);
+  pContext->VSSetShader(m_pVertexShader.Get(), nullptr, 0);
+  pContext->PSSetShader(m_pPixelShader.Get(), nullptr, 0);
 
-  ID3D11Buffer* cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
+  ID3D11Buffer *cbuffers[] = {pSceneBuffer, m_pGeomBuffer.Get()};
   pContext->VSSetConstantBuffers(0, 2, cbuffers);
   pContext->DrawIndexed(m_sphereIndexCount, 0, 0);
 }
@@ -187,6 +193,7 @@ void CubeMap::Resize(UINT width, UINT height) {
   SphereGeomBuffer geomBuffer;
   geomBuffer.m = DirectX::XMMatrixIdentity();
   geomBuffer.size = r;
-  auto pContext = m_pDeviceResources->GetDeviceContext();
-  pContext->UpdateSubresource(m_pGeomBuffer, 0, nullptr, &geomBuffer, 0, 0);
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+  pContext->UpdateSubresource(m_pGeomBuffer.Get(), 0, nullptr, &geomBuffer, 0,
+                              0);
 }

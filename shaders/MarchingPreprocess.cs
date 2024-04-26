@@ -26,7 +26,7 @@ void update_grid(uint start, uint end)
     for (int p = start; p < end; ++p)
     {
       int3 localPos = round((particles[p].position - worldPos) / marchingWidth);
-        int radius = h / 2 / marchingWidth;
+        int radius = marchingWidth / h / 2;
         for (int i = -radius; i <= radius; ++i)
         {
             for (int j = -radius; j <= radius; ++j)
@@ -88,7 +88,7 @@ void update2(in uint index)
         }
     }
 
-    voxel_grid[index] = density > 0 ? true : false;
+    voxel_grid[index] = density > 35 ? true : false;
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]

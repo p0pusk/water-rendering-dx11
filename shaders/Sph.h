@@ -20,6 +20,11 @@ struct Particle {
   uint hash;
 };
 
+struct SurfaceBuffer {
+  uint sum;
+  uint usedCells;
+};
+
 static const uint BLOCK_SIZE = 1024;
 static const uint GROUPS_NUM = ceil(particlesNum / (float)BLOCK_SIZE);
 

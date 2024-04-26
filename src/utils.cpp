@@ -1,10 +1,12 @@
 #include "utils.h"
-#include "device-resources.h"
 
-HRESULT CompileAndCreateShader(const std::wstring &path,
-                               ID3D11DeviceChild **ppShader,
-                               const std::vector<std::string> &defines,
-                               ID3DBlob **ppCode) {
+#include "device-resources.h"
+#include "pch.h"
+
+HRESULT DX::CompileAndCreateShader(const std::wstring &path,
+                                   ID3D11DeviceChild **ppShader,
+                                   const std::vector<std::string> &defines,
+                                   ID3DBlob **ppCode) {
   // Try to load shader's source code first
   FILE *pFile = nullptr;
   _wfopen_s(&pFile, path.c_str(), L"rb");
@@ -48,7 +50,7 @@ HRESULT CompileAndCreateShader(const std::wstring &path,
   flags1 |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif // _DEBUG
 
-  D3DInclude includeHandler;
+  DX::D3DInclude includeHandler;
 
   std::vector<D3D_SHADER_MACRO> shaderDefines;
   shaderDefines.resize(defines.size() + 1);
@@ -72,36 +74,39 @@ HRESULT CompileAndCreateShader(const std::wstring &path,
   assert(SUCCEEDED(result));
   SAFE_RELEASE(pErrMsg);
 
+  auto dxResources = DeviceResources::getInstance();
+  auto pDevice = dxResources.m_pDevice;
+
   // Create shader itself if anything else is OK
   if (SUCCEEDED(result)) {
     if (ext == L"vs") {
       ID3D11VertexShader *pVertexShader = nullptr;
-      result = DX::DeviceResources::GetDevice()->CreateVertexShader(
-          pCode->GetBufferPointer(), pCode->GetBufferSize(), nullptr,
-          &pVertexShader);
+      result = pDevice->CreateVertexShader(pCode->GetBufferPointer(),
+                                           pCode->GetBufferSize(), nullptr,
+                                           &pVertexShader);
       if (SUCCEEDED(result)) {
         *ppShader = pVertexShader;
       }
     } else if (ext == L"ps") {
       ID3D11PixelShader *pPixelShader = nullptr;
-      result = m_pDevice->CreatePixelShader(pCode->GetBufferPointer(),
-                                            pCode->GetBufferSize(), nullptr,
-                                            &pPixelShader);
+      result = pDevice->CreatePixelShader(pCode->GetBufferPointer(),
+                                          pCode->GetBufferSize(), nullptr,
+                                          &pPixelShader);
       if (SUCCEEDED(result)) {
         *ppShader = pPixelShader;
       }
     } else if (ext == L"cs") {
       ID3D11ComputeShader *pComputeShader = nullptr;
-      result = m_pDevice->CreateComputeShader(pCode->GetBufferPointer(),
-                                              pCode->GetBufferSize(), nullptr,
-                                              &pComputeShader);
+      result = pDevice->CreateComputeShader(pCode->GetBufferPointer(),
+                                            pCode->GetBufferSize(), nullptr,
+                                            &pComputeShader);
       if (SUCCEEDED(result)) {
         *ppShader = pComputeShader;
       }
     }
   }
   if (SUCCEEDED(result)) {
-    result = SetResourceName(*ppShader, WCSToMBS(path).c_str());
+    result = DX::SetResourceName(*ppShader, WCSToMBS(path).c_str());
   }
 
   if (ppCode) {

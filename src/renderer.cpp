@@ -4,11 +4,14 @@
 #include <memory>
 
 #include "DDS.h"
+#include "cubemap.h"
+#include "device-resources.h"
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_win32.h"
 #include "pch.h"
 #include "simulationRenderer.h"
+#include "utils.h"
 
 #define _USE_MATH_DEFINES
 
@@ -61,11 +64,10 @@ void Renderer::Camera::GetDirections(Vector3 &forward, Vector3 &right) {
 const double Renderer::PanSpeed = 2.0;
 
 bool Renderer::Init(HWND hWnd) {
-  HRESULT result;
-  m_pDeviceResources = std::make_shared<DX::DeviceResources>();
+  HRESULT result = S_OK;
 
   try {
-    result = m_pDeviceResources->Init(hWnd);
+    DeviceResources::getInstance().Init(hWnd);
   } catch (std::exception e) {
     std::cerr << e.what() << std::endl;
     exit(1);
@@ -100,8 +102,9 @@ bool Renderer::Init(HWND hWnd) {
 
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hWnd);
-    ImGui_ImplDX11_Init(m_pDeviceResources->GetDevice(),
-                        m_pDeviceResources->GetDeviceContext());
+    auto dxResources = DeviceResources::getInstance();
+    ImGui_ImplDX11_Init(dxResources.m_pDevice.Get(),
+                        dxResources.m_pDeviceContext.Get());
   }
 
   if (FAILED(result)) {
@@ -115,18 +118,18 @@ HRESULT Renderer::InitScene() {
   // Create scene buffer
   HRESULT result = S_OK;
 
-  result = m_pDeviceResources->CreateConstantBuffer<SceneBuffer>(
+  result = DX::CreateConstantBuffer<SceneBuffer>(
       D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE, nullptr, "SceneBuffer",
       &m_pSceneBuffer);
 
   if (SUCCEEDED(result)) {
-    m_pCubeMap = std::unique_ptr<CubeMap>(new CubeMap(m_pDeviceResources));
+    m_pCubeMap = std::make_unique<CubeMap>();
     result = m_pCubeMap->Init();
   }
 
   if (SUCCEEDED(result)) {
-    m_pSurface = new Surface(m_pDeviceResources, m_pCubeMap->m_pCubemapView);
-    result = m_pSurface->Init();
+    m_pSurface = std::make_unique<Surface>(m_pCubeMap->m_pCubemapView.Get());
+    result = m_pSurface->Init({0, 0, 0});
   }
 
   if (SUCCEEDED(result)) {
@@ -135,8 +138,7 @@ HRESULT Renderer::InitScene() {
   }
 
   try {
-    m_pSimulationRenderer =
-        std::make_unique<SimRenderer>(m_pDeviceResources, g_settings);
+    m_pSimulationRenderer = std::make_unique<SimRenderer>(g_settings);
     m_pSimulationRenderer->Init();
   } catch (std::exception &e) {
     std::cout << e.what();
@@ -148,7 +150,6 @@ HRESULT Renderer::InitScene() {
   return result;
 }
 void Renderer::Term() {
-  TermScene();
   ImGui_ImplDX11_Shutdown();
   ImGui_ImplWin32_Shutdown();
   ImGui::DestroyContext();
@@ -209,9 +210,10 @@ bool Renderer::Update() {
   DirectX::XMMATRIX p = DirectX::XMMatrixPerspectiveLH(
       tanf(fov / 2) * 2 * f, tanf(fov / 2) * 2 * f * aspectRatio, f, n);
 
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
   D3D11_MAPPED_SUBRESOURCE subresource;
-  HRESULT result = m_pDeviceResources->GetDeviceContext()->Map(
-      m_pSceneBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &subresource);
+  HRESULT result = pContext->Map(m_pSceneBuffer.Get(), 0,
+                                 D3D11_MAP_WRITE_DISCARD, 0, &subresource);
   assert(SUCCEEDED(result));
 
   if (SUCCEEDED(result)) {
@@ -220,26 +222,26 @@ bool Renderer::Update() {
 
     memcpy(subresource.pData, &m_sceneBuffer, sizeof(SceneBuffer));
 
-    m_pDeviceResources->GetDeviceContext()->Unmap(m_pSceneBuffer, 0);
+    pContext->Unmap(m_pSceneBuffer.Get(), 0);
   }
 
   return SUCCEEDED(result);
 }
 
 bool Renderer::Render() {
-  auto deviceContext = m_pDeviceResources->GetDeviceContext();
-  deviceContext->ClearState();
+  auto resources = DeviceResources::getInstance();
+  resources.m_pDeviceContext->ClearState();
 
-  ID3D11RenderTargetView *views[] = {m_pDeviceResources->GetBackBufferRTV()};
-  deviceContext->OMSetRenderTargets(1, views,
-                                    m_pDeviceResources->GetDepthBufferDSV());
+  ID3D11RenderTargetView *views[] = {resources.m_pBackBufferRTV.Get()};
+  resources.m_pDeviceContext->OMSetRenderTargets(
+      1, views, resources.m_pDepthBufferDSV.Get());
 
   static const FLOAT BackColor[4] = {0.25f, 0.25f, 0.55f, 1.0f};
 
-  deviceContext->ClearRenderTargetView(m_pDeviceResources->GetBackBufferRTV(),
-                                       BackColor);
-  deviceContext->ClearDepthStencilView(m_pDeviceResources->GetDepthBufferDSV(),
-                                       D3D11_CLEAR_DEPTH, 0.0f, 0);
+  resources.m_pDeviceContext->ClearRenderTargetView(
+      resources.m_pBackBufferRTV.Get(), BackColor);
+  resources.m_pDeviceContext->ClearDepthStencilView(
+      resources.m_pDepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 0.0f, 0);
 
   D3D11_VIEWPORT viewport;
   viewport.TopLeftX = 0;
@@ -248,16 +250,16 @@ bool Renderer::Render() {
   viewport.Height = (FLOAT)m_height;
   viewport.MinDepth = 0.0f;
   viewport.MaxDepth = 1.0f;
-  deviceContext->RSSetViewports(1, &viewport);
+  resources.m_pDeviceContext->RSSetViewports(1, &viewport);
 
   D3D11_RECT rect;
   rect.left = 0;
   rect.top = 0;
   rect.right = m_width;
   rect.bottom = m_height;
-  deviceContext->RSSetScissorRects(1, &rect);
+  resources.m_pDeviceContext->RSSetScissorRects(1, &rect);
 
-  deviceContext->RSSetState(m_pDeviceResources->GetRasterizerState());
+  resources.m_pDeviceContext->RSSetState(resources.m_pRasterizerState.Get());
 
   // m_pCubeMap->Render(m_pSceneBuffer);
   ImGui_ImplDX11_NewFrame();
@@ -265,19 +267,19 @@ bool Renderer::Render() {
   ImGui::NewFrame();
 
   try {
-    m_pSurface->Render(m_pSceneBuffer);
+    m_pSurface->Render(m_pSceneBuffer.Get());
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     exit(1);
   }
   // m_pWater->Render(m_pSceneBuffer);
-  m_pSimulationRenderer->Render(m_pSceneBuffer);
+  m_pSimulationRenderer->Render(m_pSceneBuffer.Get());
 
   ImGui::Render();
   ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
   // Rendering
-  HRESULT result = m_pDeviceResources->GetSwapChain()->Present(0, 0);
+  HRESULT result = DeviceResources::getInstance().m_pSwapChain->Present(0, 0);
   assert(SUCCEEDED(result));
 
   return SUCCEEDED(result);
@@ -288,7 +290,7 @@ bool Renderer::Resize(UINT width, UINT height) {
     m_width = width;
     m_height = height;
 
-    bool result = m_pDeviceResources->Resize(width, height);
+    bool result = DeviceResources::getInstance().Resize(width, height);
     m_pCubeMap->Resize(width, height);
 
     return result;
@@ -386,5 +388,3 @@ void Renderer::KeyReleased(int keyCode) {
     break;
   }
 }
-
-void Renderer::TermScene() { m_pCubeMap.release(); }

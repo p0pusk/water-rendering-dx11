@@ -1,11 +1,11 @@
 #pragma once
 
+#include "device-resources.h"
 #include "pch.h"
-#include "primitive.h"
 
 using namespace DirectX::SimpleMath;
 
-class Surface : public ::Primitive {
+class Surface {
   struct Vertex {
     Vector3 pos;
     Vector3 norm;
@@ -17,21 +17,19 @@ class Surface : public ::Primitive {
     Vector4 color;
   };
 
- public:
-  Surface(std::shared_ptr<DX::DeviceResources> pDeviceResources,
-          ID3D11ShaderResourceView* pCubemapView)
+public:
+  Surface(ID3D11ShaderResourceView *pCubemapView)
+      : m_pCubemapView(pCubemapView) {}
 
-      : Primitive(pDeviceResources),
-        m_pCubemapView(pCubemapView),
-        m_pGeomBuffer(nullptr) {}
-
-  ~Surface() { SAFE_RELEASE(m_pGeomBuffer); }
-
-  HRESULT Init() override;
   HRESULT Init(Vector3 pos);
-  void Render(ID3D11Buffer* pSceneBuffer = nullptr) override;
+  void Render(ID3D11Buffer *pSceneBuffer = nullptr);
 
- private:
-  ID3D11Buffer* m_pGeomBuffer;
-  ID3D11ShaderResourceView* m_pCubemapView;
+private:
+  ComPtr<ID3D11Buffer> m_pGeomBuffer;
+  ComPtr<ID3D11Buffer> m_pVertexBuffer;
+  ComPtr<ID3D11Buffer> m_pIndexBuffer;
+  ComPtr<ID3D11InputLayout> m_pInputLayout;
+  ComPtr<ID3D11VertexShader> m_pVertexShader;
+  ComPtr<ID3D11PixelShader> m_pPixelShader;
+  ComPtr<ID3D11ShaderResourceView> m_pCubemapView;
 };

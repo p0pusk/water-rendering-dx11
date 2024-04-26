@@ -12,7 +12,6 @@
 
 #include "cubemap.h"
 #include "device-resources.h"
-#include "primitive.h"
 #include "simulationRenderer.h"
 #include "surface.h"
 #include "water.h"
@@ -20,23 +19,13 @@
 class Renderer {
   static const double PanSpeed;
 
- public:
+public:
   Renderer()
-      : m_pSceneBuffer(nullptr),
-        m_rbPressed(false),
-        m_prevMouseX(0),
-        m_prevMouseY(0),
-        m_rotateModel(false),
-        m_angle(0.0),
-        m_forwardDelta(0.0),
-        m_rightDelta(0.0),
-        m_showLightBulbs(true),
-        m_useNormalMaps(true),
-        m_showNormals(false),
-        m_prevUSec(0),
+      : m_pSceneBuffer(nullptr), m_rbPressed(false), m_prevMouseX(0),
+        m_prevMouseY(0), m_rotateModel(false), m_angle(0.0),
+        m_forwardDelta(0.0), m_rightDelta(0.0), m_showLightBulbs(true),
+        m_useNormalMaps(true), m_showNormals(false), m_prevUSec(0),
         m_prevSimUSec(0) {}
-
-  ~Renderer() { SAFE_RELEASE(m_pSceneBuffer); }
 
   bool Init(HWND hWnd);
   void Term();
@@ -51,14 +40,14 @@ class Renderer {
   void KeyPressed(int keyCode);
   void KeyReleased(int keyCode);
 
- private:
+private:
   struct Camera {
-    Vector3 poi;  // Point of interest
-    float r;      // Distance to POI
-    float phi;    // Angle in plane x0z
-    float theta;  // Angle from plane x0z
+    Vector3 poi; // Point of interest
+    float r;     // Distance to POI
+    float phi;   // Angle in plane x0z
+    float theta; // Angle from plane x0z
 
-    void GetDirections(Vector3& forward, Vector3& right);
+    void GetDirections(Vector3 &forward, Vector3 &right);
   };
 
   struct Light {
@@ -69,7 +58,7 @@ class Renderer {
   struct SceneBuffer {
     DirectX::XMMATRIX vp;
     Vector4 cameraPos;
-    Vector4 lightCount;  // x - light count (max 10)
+    Vector4 lightCount; // x - light count (max 10)
     Light lights[10];
     Vector4 ambientColor;
   };
@@ -78,21 +67,18 @@ class Renderer {
     Vector3 v[4];
   };
 
- private:
+private:
   void ImGuiRender();
   HRESULT InitScene();
-  void TermScene();
 
- private:
-  std::shared_ptr<DX::DeviceResources> m_pDeviceResources;
-
-  Surface* m_pSurface;
-  Water* m_pWater;
+private:
+  std::unique_ptr<Surface> m_pSurface;
+  std::unique_ptr<Water> m_pWater;
   std::unique_ptr<SimRenderer> m_pSimulationRenderer;
   std::unique_ptr<CubeMap> m_pCubeMap;
 
   SceneBuffer m_sceneBuffer;
-  ID3D11Buffer* m_pSceneBuffer;
+  ComPtr<ID3D11Buffer> m_pSceneBuffer;
 
   UINT m_width;
   UINT m_height;

@@ -4,8 +4,9 @@
 #include <exception>
 
 #include "pch.h"
+#include "utils.h"
 
-HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
+HRESULT DeviceResources::Init(const HWND &hWnd) {
   HRESULT result;
 
   // Create a DirectX graphics interface factory.
@@ -98,7 +99,7 @@ HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
     result = m_pDevice->CreateRasterizerState(&desc, &m_pRasterizerState);
 
     assert(SUCCEEDED(result));
-    result = SetResourceName(m_pRasterizerState.Get(), "RasterizerState");
+    result = DX::SetResourceName(m_pRasterizerState.Get(), "RasterizerState");
     assert(SUCCEEDED(result));
   }
 
@@ -120,12 +121,12 @@ HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
 
     result = m_pDevice->CreateBlendState(&desc, &m_pTransBlendState);
     assert(SUCCEEDED(result));
-    result = SetResourceName(m_pTransBlendState.Get(), "TransBlendState");
+    result = DX::SetResourceName(m_pTransBlendState.Get(), "TransBlendState");
     assert(SUCCEEDED(result));
     desc.RenderTarget[0].BlendEnable = FALSE;
     result = m_pDevice->CreateBlendState(&desc, &m_pOpaqueBlendState);
     assert(SUCCEEDED(result));
-    result = SetResourceName(m_pOpaqueBlendState.Get(), "OpaqueBlendState");
+    result = DX::SetResourceName(m_pOpaqueBlendState.Get(), "OpaqueBlendState");
     assert(SUCCEEDED(result));
   }
 
@@ -140,7 +141,7 @@ HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
     result = m_pDevice->CreateDepthStencilState(&desc, &m_pDepthState);
     assert(SUCCEEDED(result));
 
-    result = SetResourceName(m_pDepthState.Get(), "DepthState");
+    result = DX::SetResourceName(m_pDepthState.Get(), "DepthState");
     assert(SUCCEEDED(result));
   }
 
@@ -154,7 +155,7 @@ HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
 
     result = m_pDevice->CreateDepthStencilState(&desc, &m_pTransDepthState);
     assert(SUCCEEDED(result));
-    result = SetResourceName(m_pTransDepthState.Get(), "TransDepthState");
+    result = DX::SetResourceName(m_pTransDepthState.Get(), "TransDepthState");
     assert(SUCCEEDED(result));
   }
 
@@ -191,7 +192,7 @@ HRESULT DX::DeviceResources::Init(const HWND &hWnd) {
   return SUCCEEDED(result);
 }
 
-bool DX::DeviceResources::Resize(UINT w, UINT h) {
+bool DeviceResources::Resize(UINT w, UINT h) {
   if (w != m_width || h != m_height) {
     m_pBackBufferRTV->Release();
     m_pDepthBuffer->Release();
@@ -213,118 +214,7 @@ bool DX::DeviceResources::Resize(UINT w, UINT h) {
   return true;
 }
 
-HRESULT DX::DeviceResources::CompileAndCreateShader(
-    const std::wstring &path, ID3D11DeviceChild **ppShader,
-    const std::vector<std::string> &defines, ID3DBlob **ppCode) {
-  // Try to load shader's source code first
-  FILE *pFile = nullptr;
-  _wfopen_s(&pFile, path.c_str(), L"rb");
-  assert(pFile != nullptr);
-  if (pFile == nullptr) {
-    return E_FAIL;
-  }
-
-  fseek(pFile, 0, SEEK_END);
-  long long size = _ftelli64(pFile);
-  fseek(pFile, 0, SEEK_SET);
-
-  std::vector<char> data;
-  data.resize(size + 1);
-
-  size_t rd = fread(data.data(), 1, size, pFile);
-  assert(rd == (size_t)size);
-
-  fclose(pFile);
-
-  // Determine shader's type
-  std::wstring ext = Extension(path);
-
-  std::string entryPoint = "";
-  std::string platform = "";
-
-  if (ext == L"vs") {
-    entryPoint = "vs";
-    platform = "vs_5_0";
-  } else if (ext == L"ps") {
-    entryPoint = "ps";
-    platform = "ps_5_0";
-  } else if (ext == L"cs") {
-    entryPoint = "cs";
-    platform = "cs_5_0";
-  }
-
-  // Setup flags
-  UINT flags1 = 0;
-#ifdef _DEBUG
-  flags1 |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif // _DEBUG
-
-  D3DInclude includeHandler;
-
-  std::vector<D3D_SHADER_MACRO> shaderDefines;
-  shaderDefines.resize(defines.size() + 1);
-  for (int i = 0; i < defines.size(); i++) {
-    shaderDefines[i].Name = defines[i].c_str();
-    shaderDefines[i].Definition = "";
-  }
-  shaderDefines.back().Name = nullptr;
-  shaderDefines.back().Definition = nullptr;
-
-  // Try to compile
-  ID3DBlob *pCode = nullptr;
-  ID3DBlob *pErrMsg = nullptr;
-  HRESULT result =
-      D3DCompile(data.data(), data.size(), WCSToMBS(path).c_str(),
-                 shaderDefines.data(), &includeHandler, entryPoint.c_str(),
-                 platform.c_str(), flags1, 0, &pCode, &pErrMsg);
-  if (!SUCCEEDED(result) && pErrMsg != nullptr) {
-    OutputDebugStringA((const char *)pErrMsg->GetBufferPointer());
-  }
-  assert(SUCCEEDED(result));
-  SAFE_RELEASE(pErrMsg);
-
-  // Create shader itself if anything else is OK
-  if (SUCCEEDED(result)) {
-    if (ext == L"vs") {
-      ID3D11VertexShader *pVertexShader = nullptr;
-      result = m_pDevice->CreateVertexShader(pCode->GetBufferPointer(),
-                                             pCode->GetBufferSize(), nullptr,
-                                             &pVertexShader);
-      if (SUCCEEDED(result)) {
-        *ppShader = pVertexShader;
-      }
-    } else if (ext == L"ps") {
-      ID3D11PixelShader *pPixelShader = nullptr;
-      result = m_pDevice->CreatePixelShader(pCode->GetBufferPointer(),
-                                            pCode->GetBufferSize(), nullptr,
-                                            &pPixelShader);
-      if (SUCCEEDED(result)) {
-        *ppShader = pPixelShader;
-      }
-    } else if (ext == L"cs") {
-      ID3D11ComputeShader *pComputeShader = nullptr;
-      result = m_pDevice->CreateComputeShader(pCode->GetBufferPointer(),
-                                              pCode->GetBufferSize(), nullptr,
-                                              &pComputeShader);
-      if (SUCCEEDED(result)) {
-        *ppShader = pComputeShader;
-      }
-    }
-  }
-  if (SUCCEEDED(result)) {
-    result = SetResourceName(*ppShader, WCSToMBS(path).c_str());
-  }
-
-  if (ppCode) {
-    *ppCode = pCode;
-  } else {
-    SAFE_RELEASE(pCode);
-  }
-
-  return result;
-}
-
-HRESULT DX::DeviceResources::SetupBackBuffer() {
+HRESULT DeviceResources::SetupBackBuffer() {
   ID3D11Texture2D *pBackBuffer = nullptr;
   HRESULT result = m_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D),
                                            (LPVOID *)&pBackBuffer);
@@ -352,7 +242,7 @@ HRESULT DX::DeviceResources::SetupBackBuffer() {
     result = m_pDevice->CreateTexture2D(&desc, nullptr,
                                         m_pDepthBuffer.GetAddressOf());
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pDepthBuffer.Get(), "DepthBuffer");
+      result = DX::SetResourceName(m_pDepthBuffer.Get(), "DepthBuffer");
     }
   }
 
@@ -361,7 +251,7 @@ HRESULT DX::DeviceResources::SetupBackBuffer() {
         m_pDepthBuffer.Get(), nullptr, m_pDepthBufferDSV.GetAddressOf());
 
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pDepthBuffer.Get(), "DepthBufferView");
+      result = DX::SetResourceName(m_pDepthBuffer.Get(), "DepthBufferView");
     }
   }
 

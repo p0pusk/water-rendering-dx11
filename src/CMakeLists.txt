@@ -1,18 +1,20 @@
 set(
   SRC
   main.cpp
+  utils.cpp
+  ../include/utils.h
   renderer.cpp
   DDS.cpp
+  cubemap.cpp
+  surface.cpp
+  device-resources.cpp
   simulation/marching-cubes.cpp
   simulation/water.cpp
   simulationRenderer.cpp
   simulation/heightfield.cpp
-  cubemap.cpp
-  simulation/settings.h
-  surface.cpp
   simulation/sph.cpp
-  device-resources.cpp
-  primitive.cpp
+  simulation/sph-gpu.cpp
+  simulation/settings.h
 )
 
 add_executable(${PROJECT_NAME} WIN32
@@ -72,6 +74,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include/simulation
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/src/simulation
     ${directxtk_INCLUDE_DIR}

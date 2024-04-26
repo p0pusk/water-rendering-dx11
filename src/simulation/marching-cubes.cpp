@@ -10,7 +10,7 @@ void MarchingCube::update_grid() {
   for (int i = 0; i < m_voxel_grid.data.size(); i++) {
     m_voxel_grid.data[i] = false;
   }
-  for (auto& p : m_particles) {
+  for (auto &p : m_particles) {
     XMINT3 dPos = XMINT3(std::round(p.position.x / m_width),
                          std::round(p.position.y / m_width),
                          std::round(p.position.z / m_width));
@@ -48,7 +48,7 @@ void MarchingCube::update_grid() {
   // }
 }
 
-void MarchingCube::march(std::vector<Vector3>& vertex) {
+void MarchingCube::march(std::vector<Vector3> &vertex) {
   vertex.clear();
   update_grid();
 
@@ -64,7 +64,7 @@ void MarchingCube::march(std::vector<Vector3>& vertex) {
   }
 }
 
-void MarchingCube::march_cube(XMINT3 pos, std::vector<Vector3>& vertex) {
+void MarchingCube::march_cube(XMINT3 pos, std::vector<Vector3> &vertex) {
   auto edges = get_triangulations(pos.x, pos.y, pos.z);
   for (int i = 0; i <= 15 && edges[i] != -1; i += 3) {
     Vector3 p1 = get_point(edges[i], pos);
@@ -92,7 +92,7 @@ Vector3 MarchingCube::get_point(UINT edge_index, XMINT3 pos) {
   return (worldP1 + worldP2) / 2;
 }
 
-const int* MarchingCube::get_triangulations(UINT x, UINT y, UINT z) {
+const int *MarchingCube::get_triangulations(UINT x, UINT y, UINT z) {
   /*
 
   indecies:
@@ -123,7 +123,7 @@ const int* MarchingCube::get_triangulations(UINT x, UINT y, UINT z) {
 
 bool MarchingCube::check_collision(Vector3 point) {
   float min_dist = m_particle_radius;
-  for (auto& p : m_particles) {
+  for (auto &p : m_particles) {
     float d = Vector3::Distance(point, p.position);
     if (d <= min_dist) {
       return true;
@@ -132,8 +132,8 @@ bool MarchingCube::check_collision(Vector3 point) {
   return false;
 }
 
-bool MarchingCube::check_collision(const Vector3& point,
-                                   const Vector3& particle) {
+bool MarchingCube::check_collision(const Vector3 &point,
+                                   const Vector3 &particle) {
   float min_dist = m_particle_radius;
   float d = Vector3::Distance(point, particle);
   if (d <= min_dist) {

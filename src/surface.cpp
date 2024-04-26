@@ -1,6 +1,6 @@
 #include "surface.h"
-
-HRESULT Surface::Init() { return Init(Vector3::Zero); }
+#include "device-resources.h"
+#include "utils.h"
 
 HRESULT Surface::Init(Vector3 pos) {
   static const D3D11_INPUT_ELEMENT_DESC InputDesc[] = {
@@ -17,7 +17,7 @@ HRESULT Surface::Init(Vector3 pos) {
   static const UINT16 Indices[] = {0, 1, 2, 0, 2, 3};
 
   HRESULT result = S_OK;
-  auto pDevice = m_pDeviceResources->GetDevice();
+  auto pDevice = DeviceResources::getInstance().m_pDevice;
 
   // Create vertex buffer
   if (SUCCEEDED(result)) {
@@ -37,7 +37,7 @@ HRESULT Surface::Init(Vector3 pos) {
     result = pDevice->CreateBuffer(&desc, &data, &m_pVertexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pVertexBuffer, "RectVertexBuffer");
+      result = DX::SetResourceName(m_pVertexBuffer.Get(), "RectVertexBuffer");
     }
   }
 
@@ -59,20 +59,22 @@ HRESULT Surface::Init(Vector3 pos) {
     result = pDevice->CreateBuffer(&desc, &data, &m_pIndexBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pIndexBuffer, "RectIndexBuffer");
+      result = DX::SetResourceName(m_pIndexBuffer.Get(), "RectIndexBuffer");
     }
   }
 
   ID3DBlob *pRectVertexShaderCode = nullptr;
   if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(
-        L"shaders/Surface.vs", (ID3D11DeviceChild **)&m_pVertexShader, {},
+    result = DX::CompileAndCreateShader(
+        L"shaders/Surface.vs",
+        (ID3D11DeviceChild **)m_pVertexShader.GetAddressOf(), {},
         &pRectVertexShaderCode);
   }
+
   if (SUCCEEDED(result)) {
-    result = m_pDeviceResources->CompileAndCreateShader(
-        L"shaders/Surface.ps", (ID3D11DeviceChild **)&m_pPixelShader,
-        {"NO_LIGHTS"}, {});
+    result = DX::CompileAndCreateShader(
+        L"shaders/Surface.ps",
+        (ID3D11DeviceChild **)m_pPixelShader.GetAddressOf(), {"NO_LIGHTS"}, {});
   }
 
   if (SUCCEEDED(result)) {
@@ -80,7 +82,7 @@ HRESULT Surface::Init(Vector3 pos) {
         InputDesc, 2, pRectVertexShaderCode->GetBufferPointer(),
         pRectVertexShaderCode->GetBufferSize(), &m_pInputLayout);
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pInputLayout, "RectInputLayout");
+      result = DX::SetResourceName(m_pInputLayout.Get(), "RectInputLayout");
     }
   }
 
@@ -112,7 +114,7 @@ HRESULT Surface::Init(Vector3 pos) {
     result = pDevice->CreateBuffer(&desc, &data, &m_pGeomBuffer);
     assert(SUCCEEDED(result));
     if (SUCCEEDED(result)) {
-      result = SetResourceName(m_pGeomBuffer, "RectGeomBuffer");
+      result = DX::SetResourceName(m_pGeomBuffer.Get(), "RectGeomBuffer");
     }
   }
 
@@ -120,33 +122,34 @@ HRESULT Surface::Init(Vector3 pos) {
 }
 
 void Surface::Render(ID3D11Buffer *pSceneBuffer) {
-  auto pContext = m_pDeviceResources->GetDeviceContext();
-  auto pSampler = m_pDeviceResources->GetSampler();
-  auto pDepthState = m_pDeviceResources->GetDepthState();
+  auto dxResources = DeviceResources::getInstance();
+  auto pContext = dxResources.m_pDeviceContext;
+  auto pSampler = dxResources.m_pSampler;
+  auto pDepthState = dxResources.m_pDepthState;
 
-  ID3D11SamplerState *samplers[] = {pSampler};
+  ID3D11SamplerState *samplers[] = {pSampler.Get()};
   pContext->PSSetSamplers(0, 1, samplers);
 
-  ID3D11ShaderResourceView *resources[] = {m_pCubemapView};
+  ID3D11ShaderResourceView *resources[] = {m_pCubemapView.Get()};
   pContext->PSSetShaderResources(0, 1, resources);
 
-  pContext->OMSetDepthStencilState(pDepthState, 0);
+  pContext->OMSetDepthStencilState(pDepthState.Get(), 0);
 
-  auto pOpaqueBlendState = m_pDeviceResources->GetOpaqueBlendState();
-  pContext->OMSetBlendState(pOpaqueBlendState, nullptr, 0xFFFFFFFF);
+  auto pOpaqueBlendState = dxResources.m_pOpaqueBlendState;
+  pContext->OMSetBlendState(pOpaqueBlendState.Get(), nullptr, 0xFFFFFFFF);
 
-  pContext->IASetIndexBuffer(m_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer};
+  pContext->IASetIndexBuffer(m_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer.Get()};
   UINT strides[] = {24};
   UINT offsets[] = {0};
-  ID3D11Buffer *cbuffers[] = {pSceneBuffer, m_pGeomBuffer};
+  ID3D11Buffer *cbuffers[] = {pSceneBuffer, m_pGeomBuffer.Get()};
   pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
-  pContext->IASetInputLayout(m_pInputLayout);
+  pContext->IASetInputLayout(m_pInputLayout.Get());
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-  pContext->VSSetShader(m_pVertexShader, nullptr, 0);
+  pContext->VSSetShader(m_pVertexShader.Get(), nullptr, 0);
   pContext->VSSetConstantBuffers(0, 2, cbuffers);
   pContext->PSSetConstantBuffers(0, 2, cbuffers);
-  pContext->PSSetShader(m_pPixelShader, nullptr, 0);
+  pContext->PSSetShader(m_pPixelShader.Get(), nullptr, 0);
 
   pContext->DrawIndexed(6, 0, 0);
 }
