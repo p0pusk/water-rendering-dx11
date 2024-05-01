@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "device-resources.h"
+#include "imgui.h"
 #include "particle.h"
 #include "pch.h"
 #include "settings.h"
@@ -31,6 +32,7 @@ public:
   void Init(const std::vector<Particle> &particles);
   void Update();
   void Render();
+  void ImGuiRender();
 
   ComPtr<ID3D11Buffer> m_pSphCB;
   ComPtr<ID3D11Buffer> m_pSphDataBuffer;
@@ -43,6 +45,7 @@ private:
   UINT GetHash(XMINT3 cell);
   XMINT3 GetCell(Vector3 pos);
   void CreateQueries();
+  void CollectTimestamps();
 
   const Settings &m_settings;
   UINT m_num_particles;

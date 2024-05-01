@@ -462,47 +462,17 @@ void SimRenderer::Update(float dt) {
   pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
 }
 
-// void SimRenderer::ImGuiRender() {
-//   ImGui::Begin("Simulation");
-//   CollectTimestamps();
-//   ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-//   ImGui::Text("Particles number: %d", m_num_particles);
-//
-//   if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
-//     ImGui::Text("Frame time %f ms", ImGui::GetIO().DeltaTime * 1000.f);
-//     ImGui::Text("Sph pass: %.3f ms", m_sphOverallTime);
-//   }
-//   if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
-//     ImGui::Text("Copy time: %f ms", m_sphCopyTime);
-//     ImGui::Text("Sort time: %.3f ms", m_sortTime / 1000000.f);
-//     ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
-//     ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
-//     ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
-//     ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
-//     ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
-//     ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
-//   }
-//   if (m_settings.marching) {
-//     if (ImGui::CollapsingHeader("Marching Cubes"),
-//         ImGuiTreeNodeFlags_DefaultOpen) {
-//       ImGui::Text("Marching cube width: %0.2f * radius",
-//                   m_settings.marchingCubeWidth / m_settings.h);
-//       ImGui::Text("Marching Clear: %.3f ms", m_marchingClear);
-//       ImGui::Text("Marching Preprocess: %.3f ms", m_marchingPrep);
-//       ImGui::Text("Marching Main: %.3f ms", m_marchingMain);
-//     }
-//   }
-//   ImGui::End();
-// }
-
 void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
+  ImGui::Begin("Simulation");
   if (m_settings.marching) {
     RenderMarching(pSceneBuffer);
   } else {
     RenderSpheres(pSceneBuffer);
   }
   // ImGuiRender();
+  m_sphGpuAlgo.ImGuiRender();
   m_frameNum++;
+  ImGui::End();
 }
 
 void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {

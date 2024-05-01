@@ -191,6 +191,79 @@ void SphGpu::Update() {
   pContext->End(m_pQueryDisjoint[m_frameNum % 2].Get());
 }
 
+void SphGpu::CollectTimestamps() {
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+
+  // Check whether timestamps were disjoint during the last frame
+  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
+  pContext->GetData(m_pQueryDisjoint[m_frameNum % 2 + 1].Get(), &tsDisjoint,
+                    sizeof(tsDisjoint), 0);
+
+  if (tsDisjoint.Disjoint) {
+    return;
+  }
+
+  // Get all the timestamps
+  UINT64 tsSphStart, tsSphCopy, tsSphClear, tsSphHash, tsSphDensity,
+      tsSphPressure, tsSphForces, tsSphPositions;
+
+  pContext->GetData(m_pQuerySphStart[m_frameNum % 2 + 1].Get(), &tsSphStart,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphCopy[m_frameNum % 2 + 1].Get(), &tsSphCopy,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphClear[m_frameNum % 2 + 1].Get(), &tsSphClear,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphHash[m_frameNum % 2 + 1].Get(), &tsSphHash,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphDensity[m_frameNum % 2 + 1].Get(), &tsSphDensity,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphPressure[m_frameNum % 2 + 1].Get(),
+                    &tsSphPressure, sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphForces[m_frameNum % 2 + 1].Get(), &tsSphForces,
+                    sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphPosition[m_frameNum % 2 + 1].Get(),
+                    &tsSphPositions, sizeof(UINT64), 0);
+
+  // Convert to real time
+  m_sphCopyTime =
+      float(tsSphCopy - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphClearTime =
+      float(tsSphCopy - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphCreateHashTime =
+      float(tsSphClear - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphDensityTime =
+      float(tsSphHash - tsSphDensity) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
+                      float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphForcesTime = float(tsSphForces - tsSphPressure) /
+                    float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
+                       float(tsDisjoint.Frequency) * 1000.0f;
+
+  m_frameNum++;
+}
+
+void SphGpu::ImGuiRender() {
+  CollectTimestamps();
+  ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+  ImGui::Text("Particles number: %d", m_num_particles);
+
+  if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Frame time %f ms", ImGui::GetIO().DeltaTime * 1000.f);
+    ImGui::Text("Sph pass: %.3f ms", m_sphOverallTime);
+  }
+  if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Copy time: %f ms", m_sphCopyTime);
+    ImGui::Text("Sort time: %.3f ms", m_sortTime / 1000000.f);
+    ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
+    ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
+    ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
+    ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
+    ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
+    ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
+  }
+}
+
 UINT SphGpu::GetHash(XMINT3 cell) {
   return ((cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791)) %
          m_settings.TABLE_SIZE;
