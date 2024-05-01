@@ -62,7 +62,7 @@ public:
   HRESULT Init();
   void Update(float dt);
   void Render(ID3D11Buffer *pSceneBuffer = nullptr);
-  // void ImGuiRender();
+  void ImGuiRender();
 
   const Settings &m_settings;
 

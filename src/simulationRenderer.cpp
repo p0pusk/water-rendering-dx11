@@ -1,5 +1,5 @@
 #include "simulationRenderer.h"
-
+//
 #include <algorithm>
 #include <chrono>
 #include <exception>
@@ -469,8 +469,8 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   } else {
     RenderSpheres(pSceneBuffer);
   }
-  // ImGuiRender();
   m_sphGpuAlgo.ImGuiRender();
+  ImGuiRender();
   m_frameNum++;
   ImGui::End();
 }
@@ -570,4 +570,18 @@ void SimRenderer::CollectTimestamps() {
                    float(tsDisjoint.Frequency) * 1000.0f;
   m_marchingMain = float(tsMarchingMain - tsMarchingPreproc) /
                    float(tsDisjoint.Frequency) * 1000.0f;
+}
+
+void SimRenderer::ImGuiRender() {
+  CollectTimestamps();
+  if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("MarchingCubes pass: %.3f ms",
+                m_marchingClear + m_marchingMain + m_marchingPrep);
+  }
+  if (ImGui::CollapsingHeader("MarchingCubes"),
+      ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Clear time: %.3f ms", m_marchingClear);
+    ImGui::Text("Preprocess time: %.3f ms", m_marchingPrep);
+    ImGui::Text("Main time: %.3f ms", m_marchingMain);
+  }
 }

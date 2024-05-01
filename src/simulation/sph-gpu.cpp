@@ -52,11 +52,8 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
 
   try {
     // create Hash buffer
-    D3D11_SUBRESOURCE_DATA data = {};
-    data.pSysMem = m_hash_table.data();
-
     DX::CreateStructuredBuffer<UINT>(m_settings.TABLE_SIZE, D3D11_USAGE_DEFAULT,
-                                     0, &data, "HashBuffer", &m_pHashBuffer);
+                                     0, nullptr, "HashBuffer", &m_pHashBuffer);
 
     // create Hash UAV
     DX::CreateBufferUAV(m_pHashBuffer.Get(), m_settings.TABLE_SIZE,
@@ -133,6 +130,7 @@ void SphGpu::CreateQueries() {
 
 void SphGpu::Update() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+  m_frameNum++;
   pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
 
   pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());
@@ -196,7 +194,7 @@ void SphGpu::CollectTimestamps() {
 
   // Check whether timestamps were disjoint during the last frame
   D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
-  pContext->GetData(m_pQueryDisjoint[m_frameNum % 2 + 1].Get(), &tsDisjoint,
+  pContext->GetData(m_pQueryDisjoint[(m_frameNum + 1) % 2].Get(), &tsDisjoint,
                     sizeof(tsDisjoint), 0);
 
   if (tsDisjoint.Disjoint) {
@@ -207,32 +205,32 @@ void SphGpu::CollectTimestamps() {
   UINT64 tsSphStart, tsSphCopy, tsSphClear, tsSphHash, tsSphDensity,
       tsSphPressure, tsSphForces, tsSphPositions;
 
-  pContext->GetData(m_pQuerySphStart[m_frameNum % 2 + 1].Get(), &tsSphStart,
+  pContext->GetData(m_pQuerySphStart[(m_frameNum + 1) % 2].Get(), &tsSphStart,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphCopy[m_frameNum % 2 + 1].Get(), &tsSphCopy,
+  pContext->GetData(m_pQuerySphCopy[(m_frameNum + 1) % 2].Get(), &tsSphCopy,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphClear[m_frameNum % 2 + 1].Get(), &tsSphClear,
+  pContext->GetData(m_pQuerySphClear[(m_frameNum + 1) % 2].Get(), &tsSphClear,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphHash[m_frameNum % 2 + 1].Get(), &tsSphHash,
+  pContext->GetData(m_pQuerySphHash[(m_frameNum + 1) % 2].Get(), &tsSphHash,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphDensity[m_frameNum % 2 + 1].Get(), &tsSphDensity,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphPressure[m_frameNum % 2 + 1].Get(),
+  pContext->GetData(m_pQuerySphDensity[(m_frameNum + 1) % 2].Get(),
+                    &tsSphDensity, sizeof(UINT64), 0);
+  pContext->GetData(m_pQuerySphPressure[(m_frameNum + 1) % 2].Get(),
                     &tsSphPressure, sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphForces[m_frameNum % 2 + 1].Get(), &tsSphForces,
+  pContext->GetData(m_pQuerySphForces[(m_frameNum + 1) % 2].Get(), &tsSphForces,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphPosition[m_frameNum % 2 + 1].Get(),
+  pContext->GetData(m_pQuerySphPosition[(m_frameNum + 1) % 2].Get(),
                     &tsSphPositions, sizeof(UINT64), 0);
 
   // Convert to real time
   m_sphCopyTime =
       float(tsSphCopy - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphClearTime =
-      float(tsSphCopy - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
+      float(tsSphClear - tsSphCopy) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphCreateHashTime =
-      float(tsSphClear - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
+      float(tsSphHash - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphDensityTime =
-      float(tsSphHash - tsSphDensity) / float(tsDisjoint.Frequency) * 1000.0f;
+      float(tsSphDensity - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
                       float(tsDisjoint.Frequency) * 1000.0f;
   m_sphForcesTime = float(tsSphForces - tsSphPressure) /
@@ -240,7 +238,9 @@ void SphGpu::CollectTimestamps() {
   m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
                        float(tsDisjoint.Frequency) * 1000.0f;
 
-  m_frameNum++;
+  m_sphOverallTime = m_sphCopyTime + m_sphClearTime + m_sphCreateHashTime +
+                     m_sphDensityTime + m_sphPressureTime + m_sphForcesTime +
+                     m_sphPositionsTime;
 }
 
 void SphGpu::ImGuiRender() {

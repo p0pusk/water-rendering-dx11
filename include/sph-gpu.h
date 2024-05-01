@@ -25,8 +25,16 @@ struct SphCB {
 
 class SphGpu {
 public:
-  SphGpu(const Settings &settings)
-      : m_settings(settings), m_hash_table(m_settings.TABLE_SIZE, NO_PARTICLE) {
+  SphGpu(const Settings &settings) : m_settings(settings), m_frameNum(0) {
+    m_pQueryDisjoint.resize(2);
+    m_pQuerySphStart.resize(2);
+    m_pQuerySphCopy.resize(2);
+    m_pQuerySphClear.resize(2);
+    m_pQuerySphHash.resize(2);
+    m_pQuerySphDensity.resize(2);
+    m_pQuerySphPressure.resize(2);
+    m_pQuerySphForces.resize(2);
+    m_pQuerySphPosition.resize(2);
   }
 
   void Init(const std::vector<Particle> &particles);
@@ -49,7 +57,6 @@ private:
 
   const Settings &m_settings;
   UINT m_num_particles;
-  std::vector<UINT> m_hash_table;
 
   SphCB m_sphCB;
   ComPtr<ID3D11Buffer> m_pHashBuffer;
@@ -61,15 +68,15 @@ private:
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
 
-  ComPtr<ID3D11Query> m_pQueryDisjoint[2];
-  ComPtr<ID3D11Query> m_pQuerySphStart[2];
-  ComPtr<ID3D11Query> m_pQuerySphCopy[2];
-  ComPtr<ID3D11Query> m_pQuerySphClear[2];
-  ComPtr<ID3D11Query> m_pQuerySphHash[2];
-  ComPtr<ID3D11Query> m_pQuerySphDensity[2];
-  ComPtr<ID3D11Query> m_pQuerySphPressure[2];
-  ComPtr<ID3D11Query> m_pQuerySphForces[2];
-  ComPtr<ID3D11Query> m_pQuerySphPosition[2];
+  std::vector<ComPtr<ID3D11Query>> m_pQueryDisjoint;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphStart;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphCopy;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphClear;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphHash;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphDensity;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphPressure;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphForces;
+  std::vector<ComPtr<ID3D11Query>> m_pQuerySphPosition;
 
   float m_sphTime;
   float m_sphCopyTime;
@@ -81,5 +88,5 @@ private:
   float m_sphPositionsTime;
   float m_sphOverallTime;
   float m_sortTime;
-  UINT m_frameNum = 0;
+  UINT m_frameNum;
 };
