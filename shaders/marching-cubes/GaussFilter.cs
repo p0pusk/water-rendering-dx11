@@ -1,0 +1,54 @@
+#include "shaders/Sph.h"
+
+#define KERNEL_SIZE_X 5
+#define KERNEL_SIZE_Y 5
+#define KERNEL_SIZE_Z 5
+#define SIGMA 1.2f
+
+
+RWStructuredBuffer<float> inputMatrix : register(u0);
+RWStructuredBuffer<float> outputMatrix : register(u1);
+
+float gaussian(float x, float y, float z, float sigma) {
+    return exp(-(x * x + y * y + z * z) / (2 * sigma * sigma)) / (2 * PI * sigma * sigma);
+}
+
+[numthreads(BLOCK_SIZE, 1, 1)]
+void cs(uint3 DTid : SV_DispatchThreadID) {
+    uint3 cell = GetMCCell(DTid.x);
+    if (cell.x >= MC_DIMENSIONS.x || cell.y >= MC_DIMENSIONS.y || cell.z >= MC_DIMENSIONS.z)
+    {
+      return;
+    }
+
+    // Calculate the center of the kernel
+    int centerX = KERNEL_SIZE_X / 2;
+    int centerY = KERNEL_SIZE_Y / 2;
+    int centerZ = KERNEL_SIZE_Z / 2;
+
+    // Accumulator for the filtered value
+    float filteredValue = 0.0f;
+
+    // Iterate over the kernel
+    for (int dz = -centerZ; dz <= centerZ; ++dz) {
+        for (int dy = -centerY; dy <= centerY; ++dy) {
+            for (int dx = -centerX; dx <= centerX; ++dx) {
+
+                // Calculate the index in the input matrix
+                int3 index = { uint(cell.x) + dx, uint(cell.y) + dy, uint(cell.z) + dz };
+
+                // Check bounds
+                if (index.x >= 0 && index.x < MC_DIMENSIONS.x &&
+                    index.y >= 0 && index.y < MC_DIMENSIONS.y &&
+                    index.z >= 0 && index.z < MC_DIMENSIONS.z) {
+                    // Accumulate the value from the input matrix weighted by the kernel
+                    filteredValue += inputMatrix[index.z * MC_DIMENSIONS.y * MC_DIMENSIONS.x + index.y * MC_DIMENSIONS.x + index.x] * gaussian(dx, dy, dz, SIGMA);
+                }
+            }
+        }
+    }
+
+    // Write the filtered value to the output matrix
+    outputMatrix[DTid.x] = filteredValue;
+}
+

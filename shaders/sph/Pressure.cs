@@ -1,7 +1,6 @@
 #include "shaders/Sph.h"
 
 RWStructuredBuffer<Particle> particles : register(u0);
-RWStructuredBuffer<uint> grid : register(u1);
 
 
 [numthreads(BLOCK_SIZE, 1, 1)]

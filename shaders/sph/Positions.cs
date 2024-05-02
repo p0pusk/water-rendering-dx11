@@ -1,46 +1,47 @@
 #include "shaders/Sph.h"
 
+StructuredBuffer<uint> hash : register(t0);
+StructuredBuffer<uint> entries : register(t1);
 RWStructuredBuffer<Particle> particles : register(u0);
-RWStructuredBuffer<uint> grid : register(u1);
-
 
 void CheckBoundary(in uint index)
 {
     float3 localPos = particles[index].position - worldPos;
+    float padding = marchingWidth;
 
-    if (localPos.y < h)
+    if (localPos.y < padding)
     {
-        localPos.y = -localPos.y + 2 * h;
+        localPos.y = -localPos.y + 2 * padding;
         particles[index].velocity.y = -particles[index].velocity.y * dampingCoeff;
     }
 
-    if (localPos.y > -h + boundaryLen.y)
+    if (localPos.y > -padding + boundaryLen.y)
     {
-        localPos.y = -localPos.y + 2 * (-h + boundaryLen.y);
+        localPos.y = -localPos.y + 2 * (-padding + boundaryLen.y);
         particles[index].velocity.y = -particles[index].velocity.y * dampingCoeff;
     }
 
-    if (localPos.x < h)
+    if (localPos.x < padding)
     {
-        localPos.x = -localPos.x + 2 * h;
+        localPos.x = -localPos.x + 2 * padding;
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
-    if (localPos.x > -h + boundaryLen.x)
+    if (localPos.x > -padding + boundaryLen.x)
     {
-        localPos.x = -localPos.x + 2 * (-h + boundaryLen.x);
+        localPos.x = -localPos.x + 2 * (-padding + boundaryLen.x);
         particles[index].velocity.x = -particles[index].velocity.x * dampingCoeff;
     }
 
-    if (localPos.z < h)
+    if (localPos.z < padding)
     {
-        localPos.z = -localPos.z + 2 * h;
+        localPos.z = -localPos.z + 2 * padding;
         particles[index].velocity.z = -particles[index].velocity.z * dampingCoeff;
     }
 
-    if (localPos.z > -h + boundaryLen.z)
+    if (localPos.z > -padding + boundaryLen.z)
     {
-        localPos.z = -localPos.z + 2 * (-h + boundaryLen.z);
+        localPos.z = -localPos.z + 2 * (-padding + boundaryLen.z);
         particles[index].velocity.z = -particles[index].velocity.z * dampingCoeff;
     }
 

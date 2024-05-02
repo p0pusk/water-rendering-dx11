@@ -87,7 +87,6 @@ private:
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
   ComPtr<ID3D11ComputeShader> m_pMarchingPreprocessCS;
-  ComPtr<ID3D11ComputeShader> m_pMarchingClearCS;
   ComPtr<ID3D11VertexShader> m_pMarchingVertexShader;
   ComPtr<ID3D11VertexShader> m_pVertexShader;
   ComPtr<ID3D11VertexShader> m_pMarchingIndirectVertexShader;
@@ -100,8 +99,11 @@ private:
   ComPtr<ID3D11ComputeShader> m_pSurfaceCountCS;
   ComPtr<ID3D11ComputeShader> m_pSmoothingPreprocessCS;
   ComPtr<ID3D11ComputeShader> m_pBoxFilterCS;
-  ComPtr<ID3D11Buffer> m_pVoxelGridBuffer;
-  ComPtr<ID3D11UnorderedAccessView> m_pVoxelGridBufferUAV;
+  ComPtr<ID3D11ComputeShader> m_pGaussFilterCS;
+  ComPtr<ID3D11Buffer> m_pVoxelGridBuffer1;
+  ComPtr<ID3D11UnorderedAccessView> m_pVoxelGridBufferUAV1;
+  ComPtr<ID3D11Buffer> m_pVoxelGridBuffer2;
+  ComPtr<ID3D11UnorderedAccessView> m_pVoxelGridBufferUAV2;
   ComPtr<ID3D11Buffer> m_pCountBuffer;
 
   ComPtr<ID3D11InputLayout> m_pMarchingInputLayout;
@@ -115,7 +117,6 @@ private:
 
   ID3D11Query *m_pQueryDisjoint[2];
   ID3D11Query *m_pQueryMarchingStart[2];
-  ID3D11Query *m_pQueryMarchingClear[2];
   ID3D11Query *m_pQueryMarchingPreprocess[2];
   ID3D11Query *m_pQueryMarchingMain[2];
 

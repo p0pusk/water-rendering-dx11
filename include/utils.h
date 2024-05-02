@@ -13,7 +13,9 @@ inline HRESULT SetResourceName(ID3D11DeviceChild *pResource,
 HRESULT CompileAndCreateShader(const std::wstring &path,
                                ID3D11DeviceChild **ppShader,
                                const std::vector<std::string> &defines = {},
-                               ID3DBlob **ppCode = nullptr);
+                               ID3DBlob **ppCode = nullptr,
+                               const std::string &entrypoint = "",
+                               const std::string &platform = "");
 
 template <typename T>
 HRESULT CreateConstantBuffer(ID3D11Buffer **ppCB, UINT cpuFlags,

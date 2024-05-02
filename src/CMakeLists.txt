@@ -7,6 +7,7 @@ set(
   DDS.cpp
   cubemap.cpp
   surface.cpp
+  ./ScanCS.cpp
   device-resources.cpp
   simulation/marching-cubes.cpp
   simulation/water.cpp

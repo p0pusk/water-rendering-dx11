@@ -10,7 +10,7 @@ Sph::Sph(const Settings &settings) : m_settings(settings) {
 }
 
 UINT Sph::GetHash(XMINT3 cell) {
-  return ((cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791)) %
+  return ((cell.x * 92837111) ^ (cell.y * 689287499) ^ (cell.z * 283923481)) %
          m_settings.TABLE_SIZE;
 }
 
@@ -23,7 +23,7 @@ void Sph::Init(std::vector<Particle> &particles) {
   const float &h = m_settings.h;
   const XMINT3 &cubeNum = m_settings.initCube;
   float separation = h - 0.1f * h;
-  Vector3 offset = {h, h, h};
+  Vector3 offset = {3 * h, 3 * h, 3 * h};
 
   particles.resize(cubeNum.x * cubeNum.y * cubeNum.z);
 

@@ -18,16 +18,15 @@ struct Triangle
 };
 
 StructuredBuffer<Particle> particles : register(t0);
-RWStructuredBuffer<int> voxel_grid : register(u0);
+RWStructuredBuffer<float> voxel_grid : register(u0);
 AppendStructuredBuffer<Triangle> triangles : register(u1);
 RWStructuredBuffer<SurfaceBuffer> surfaceBuffer : register(u2);
 
-static const float g_c = 0.f;
+static const float g_c = 0.2f;
 
 bool voxel_get(in uint x, in uint y, in uint z)
 {
-    uint3 num = ceil(boundaryLen / marchingWidth);
-    return voxel_grid[x + y * num.x + z * num.x * num.y] - g_c;
+    return voxel_grid[x + y * MC_DIMENSIONS.x + z * MC_DIMENSIONS.x * MC_DIMENSIONS.y] > g_c;
 }
 
 
@@ -67,15 +66,14 @@ float3 get_point(in uint edge_index, in uint3 pos)
     uint3 p2 = POINTS_TABLE[point_indecies.data[1]];
 
     float3 worldP1 =
-        (p1 + pos) * marchingWidth + float3(marchingWidth / 2, marchingWidth / 2, marchingWidth / 2) + worldPos;
+        (p1 + pos - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
     float3 worldP2 =
-        (p2 + pos) * marchingWidth + float3(marchingWidth / 2, marchingWidth / 2, marchingWidth / 2) + worldPos;
+        (p2 + pos - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
 
-    uint3 num = ceil(boundaryLen / marchingWidth);
     uint3 cell1 = p1 + pos;
-    uint index1 = cell1.x + cell1.y * num.x + cell1.z * num.y * num.z;
+    uint index1 = cell1.x + cell1.y * MC_DIMENSIONS.x + cell1.z * MC_DIMENSIONS.y * MC_DIMENSIONS.z;
     uint3 cell2 = p2 + pos;
-    uint index2 = cell2.x + cell2.y * num.x + cell2.z * num.y * num.z;
+    uint index2 = cell2.x + cell2.y * MC_DIMENSIONS.x + cell2.z * MC_DIMENSIONS.y * MC_DIMENSIONS.z;
     float alpha = (g_c - voxel_grid[index1]) / (voxel_grid[index2] - voxel_grid[index1]);
 
     return (1 - alpha) * worldP1 + alpha * worldP2;
@@ -97,34 +95,18 @@ void march_cube(in uint3 pos)
 
 void march(in uint index)
 {
-    uint3 num = ceil(boundaryLen / marchingWidth);
-    uint x = index % num.x;
-    uint y = (index / num.x) % num.y;
-    uint z = (index / num.x) / num.y;
+    uint3 cell = GetMCCell(index);
 
-    if (x > num.x - 2 || y > num.y - 2 || z > num.z - 2)
+    if (cell.x >= MC_DIMENSIONS.x - 1 || cell.y >= MC_DIMENSIONS.y - 1 || cell.z >= MC_DIMENSIONS.z - 1)
     {
       return;
     }
 
-    // if (voxel_grid[index]) {
-    //   Triangle res;
-    //   res.v[0] = float3(x, y, z) * marchingWidth;
-    //   res.v[1] = float3(x, y, z) * marchingWidth;
-    //   res.v[2] = float3(x, y, z) * marchingWidth;
-    //   triangles.Append(res);
-    // }
-    march_cube(uint3(x, y, z));
+    march_cube(cell);
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]
 void cs(uint3 globalThreadId : SV_DispatchThreadID)
 {
-  // index = x + y * num.x + z * num.x * num.y
-  // index = x + (y+ z * num.y) * num.x
-  // x = index % num.x
-  // y  + z * num.y = index / num.x
-  // y = (index / num.x) % num.y
-  // z = (index / num.x) / num.y
     march(globalThreadId.x);
 }

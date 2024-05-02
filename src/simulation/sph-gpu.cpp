@@ -3,6 +3,7 @@
 #include "device-resources.h"
 #include "pch.h"
 #include "utils.h"
+#include <exception>
 #include <iostream>
 
 void SphGpu::Init(const std::vector<Particle> &particles) {
@@ -34,10 +35,9 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     data.pSysMem = particles.data();
     data.SysMemPitch = particles.size() * sizeof(Particle);
 
-    DX::CreateStructuredBuffer<Particle>(
-        particles.size(), D3D11_USAGE_DEFAULT,
-        D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE, &data, "SphDataBuffer",
-        &m_pSphDataBuffer);
+    DX::CreateStructuredBuffer<Particle>(particles.size(), D3D11_USAGE_DEFAULT,
+                                         0, &data, "SphDataBuffer",
+                                         &m_pSphDataBuffer);
 
     // create SPH UAV
     DX::CreateBufferUAV(m_pSphDataBuffer.Get(), m_num_particles,
@@ -52,16 +52,51 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
 
   try {
     // create Hash buffer
-    DX::CreateStructuredBuffer<UINT>(m_settings.TABLE_SIZE, D3D11_USAGE_DEFAULT,
-                                     0, nullptr, "HashBuffer", &m_pHashBuffer);
+    DX::CreateStructuredBuffer<UINT>(m_settings.TABLE_SIZE + 1,
+                                     D3D11_USAGE_DEFAULT, 0, nullptr,
+                                     "HashBuffer", &m_pHashBuffer);
 
     // create Hash UAV
-    DX::CreateBufferUAV(m_pHashBuffer.Get(), m_settings.TABLE_SIZE,
+    DX::CreateBufferUAV(m_pHashBuffer.Get(), m_settings.TABLE_SIZE + 1,
                         "HashBufferUAV", &m_pHashBufferUAV);
 
     // create Hash SRV
-    DX::CreateBufferSRV(m_pHashBuffer.Get(), m_settings.TABLE_SIZE,
+    DX::CreateBufferSRV(m_pHashBuffer.Get(), m_settings.TABLE_SIZE + 1,
                         "HashBufferSRV", &m_pHashBufferSRV);
+  } catch (...) {
+    throw;
+  }
+
+  try {
+    // create Scan buffer
+    DX::CreateStructuredBuffer<UINT>(m_settings.TABLE_SIZE + 1,
+                                     D3D11_USAGE_DEFAULT, 0, nullptr,
+                                     "ScanHelperBuffer", &m_pScanHelperBuffer);
+
+    // create Scan UAV
+    DX::CreateBufferUAV(m_pScanHelperBuffer.Get(), m_settings.TABLE_SIZE + 1,
+                        "ScanHelperBufferUAV", &m_pScanHelperBufferUAV);
+
+    // create Scan SRV
+    DX::CreateBufferSRV(m_pScanHelperBuffer.Get(), m_settings.TABLE_SIZE + 1,
+                        "ScanHelperBufferSRV", &m_pScanHelperBufferSRV);
+  } catch (...) {
+    throw;
+  }
+
+  try {
+    // create Entries buffer
+    DX::CreateStructuredBuffer<UINT>(m_num_particles, D3D11_USAGE_DEFAULT, 0,
+                                     nullptr, "EntriesBuffer",
+                                     &m_pEntriesBuffer);
+
+    // create Hash UAV
+    DX::CreateBufferUAV(m_pEntriesBuffer.Get(), m_num_particles,
+                        "EntriesBufferUAV", &m_pEntriesBufferUAV);
+
+    // create Hash SRV
+    DX::CreateBufferSRV(m_pEntriesBuffer.Get(), m_num_particles,
+                        "EntriesBufferSRV", &m_pEntriesBufferSRV);
   } catch (...) {
     throw;
   }
@@ -69,26 +104,34 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
   // shaders
   try {
     DX::CompileAndCreateShader(
-        L"shaders/SphClearTable.cs",
+        L"shaders/neighbouring/ClearBuffers.cs",
         (ID3D11DeviceChild **)m_pClearTableCS.GetAddressOf());
 
-    DX::CompileAndCreateShader(L"shaders/SphCreateTable.cs",
-                               (ID3D11DeviceChild **)m_pTableCS.GetAddressOf());
+    DX::CompileAndCreateShader(
+        L"shaders/neighbouring/CreateHashBuffer.cs",
+        (ID3D11DeviceChild **)m_pCreateHashCS.GetAddressOf());
 
     DX::CompileAndCreateShader(
-        L"shaders/SphDensity.cs",
+        L"shaders/neighbouring/PrefixSum.cs",
+        (ID3D11DeviceChild **)m_pPrefixSumCS.GetAddressOf());
+    DX::CompileAndCreateShader(
+        L"shaders/neighbouring/CreateEntriesBuffer.cs",
+        (ID3D11DeviceChild **)m_pCreateEntriesCS.GetAddressOf());
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/Density.cs",
         (ID3D11DeviceChild **)m_pDensityCS.GetAddressOf());
 
     DX::CompileAndCreateShader(
-        L"shaders/SphPressure.cs",
+        L"shaders/sph/Pressure.cs",
         (ID3D11DeviceChild **)m_pPressureCS.GetAddressOf());
 
     DX::CompileAndCreateShader(
-        L"shaders/SphForces.cs",
+        L"shaders/sph/Forces.cs",
         (ID3D11DeviceChild **)m_pForcesCS.GetAddressOf());
 
     DX::CompileAndCreateShader(
-        L"shaders/SphPositions.cs",
+        L"shaders/sph/Positions.cs",
         (ID3D11DeviceChild **)m_pPositionsCS.GetAddressOf());
   } catch (...) {
     throw;
@@ -114,8 +157,8 @@ void SphGpu::CreateQueries() {
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphStart[1]));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphClear[0]));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphClear[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphCopy[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphCopy[1]));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix[0]));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix[1]));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash[0]));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash[1]));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphDensity[0]));
@@ -130,84 +173,93 @@ void SphGpu::CreateQueries() {
 
 void SphGpu::Update() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-  m_frameNum++;
-  pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
+  // pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
 
-  pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());
-  D3D11_MAPPED_SUBRESOURCE resource;
-  DX::ThrowIfFailed(pContext->Map(m_pSphDataBuffer.Get(), 0,
-                                  D3D11_MAP_READ_WRITE, 0, &resource),
-                    "SphDataBuffer Map");
-
-  Particle *particles = (Particle *)resource.pData;
-  for (int i = 0; i < m_num_particles; i++) {
-    particles[i].hash = GetHash(GetCell(particles[i].position));
-  }
-
-  auto start = std::chrono::high_resolution_clock::now();
-  std::sort(particles, particles + m_num_particles,
-            [](Particle &a, Particle &b) { return a.hash < b.hash; });
-  auto end = std::chrono::high_resolution_clock::now();
-  m_sortTime =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-  pContext->Unmap(m_pSphDataBuffer.Get(), 0);
-  pContext->End(m_pQuerySphCopy[m_frameNum % 2].Get());
+  // pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
 
-  ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
-  ID3D11UnorderedAccessView *uavBuffers[2] = {m_pSphBufferUAV.Get(),
-                                              m_pHashBufferUAV.Get()};
+  {
+    ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
+    ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
+    ID3D11UnorderedAccessView *uavs[2] = {m_pHashBufferUAV.Get(),
+                                          m_pEntriesBufferUAV.Get()};
 
-  pContext->CSSetConstantBuffers(0, 1, cb);
-  pContext->CSSetUnorderedAccessViews(0, 2, uavBuffers, nullptr);
+    pContext->CSSetConstantBuffers(0, 1, cb);
+    pContext->CSSetShaderResources(0, 1, srvs);
+    pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
 
-  pContext->CSSetShader(m_pClearTableCS.Get(), nullptr, 0);
-  pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphClear[m_frameNum % 2].Get());
-  pContext->CSSetShader(m_pTableCS.Get(), nullptr, 0);
-  pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphHash[m_frameNum % 2].Get());
-  pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
-  pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphDensity[m_frameNum % 2].Get());
-  pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
-  pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphPressure[m_frameNum % 2].Get());
-  pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
-  pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphForces[m_frameNum % 2].Get());
-  pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
-  pContext->Dispatch(groupNumber, 1, 1);
-  pContext->End(m_pQuerySphPosition[m_frameNum % 2].Get());
+    pContext->CSSetShader(m_pClearTableCS.Get(), nullptr, 0);
+    pContext->Dispatch(DivUp(m_settings.TABLE_SIZE + 1, m_settings.blockSize),
+                       1, 1);
 
-  ID3D11Buffer *nullBuffers[1] = {NULL};
-  ID3D11UnorderedAccessView *nullUAVS[2] = {NULL, NULL};
-  pContext->CSSetConstantBuffers(0, 1, nullBuffers);
-  pContext->CSSetUnorderedAccessViews(0, 2, nullUAVS, nullptr);
-  pContext->End(m_pQueryDisjoint[m_frameNum % 2].Get());
+    pContext->CSSetShader(m_pCreateHashCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+    // pContext->End(m_pQuerySphClear[m_frameNum % 2].Get());
+
+    pContext->CSSetShader(m_pPrefixSumCS.Get(), nullptr, 0);
+    pContext->Dispatch(1, 1, 1);
+    // pContext->End(m_pQuerySphPrefix[m_frameNum % 2].Get());
+
+    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+    pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+    pContext->CSSetShader(m_pCreateEntriesCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+
+    ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+    pContext->CSSetShaderResources(0, 1, nsrvs);
+    // pContext->End(m_pQuerySphHash[m_frameNum % 2].Get());
+  }
+
+  {
+    ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
+                                         m_pEntriesBufferSRV.Get()};
+    ID3D11UnorderedAccessView *uavs[1] = {m_pSphBufferUAV.Get()};
+
+    pContext->CSSetShaderResources(0, 2, srvs);
+    pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+
+    pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+    // pContext->End(m_pQuerySphDensity[m_frameNum % 2].Get());
+    pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+    // pContext->End(m_pQuerySphPressure[m_frameNum % 2].Get());
+    pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+    // pContext->End(m_pQuerySphForces[m_frameNum % 2].Get());
+    pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+    // pContext->End(m_pQuerySphPosition[m_frameNum % 2].Get());
+
+    ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
+    ID3D11UnorderedAccessView *nuavs[1] = {nullptr};
+    pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
+    pContext->CSSetShaderResources(0, 2, nsrvs);
+    // pContext->End(m_pQueryDisjoint[m_frameNum % 2].Get());
+  }
 }
 
 void SphGpu::CollectTimestamps() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-
   // Check whether timestamps were disjoint during the last frame
-  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
+  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint{};
   pContext->GetData(m_pQueryDisjoint[(m_frameNum + 1) % 2].Get(), &tsDisjoint,
-                    sizeof(tsDisjoint), 0);
+                    sizeof(D3D11_QUERY_DATA_TIMESTAMP_DISJOINT), 0);
 
   if (tsDisjoint.Disjoint) {
     return;
   }
 
   // Get all the timestamps
-  UINT64 tsSphStart, tsSphCopy, tsSphClear, tsSphHash, tsSphDensity,
+  UINT64 tsSphStart, tsSphPrefix, tsSphClear, tsSphHash, tsSphDensity,
       tsSphPressure, tsSphForces, tsSphPositions;
 
   pContext->GetData(m_pQuerySphStart[(m_frameNum + 1) % 2].Get(), &tsSphStart,
                     sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphCopy[(m_frameNum + 1) % 2].Get(), &tsSphCopy,
+  pContext->GetData(m_pQuerySphPrefix[(m_frameNum + 1) % 2].Get(), &tsSphPrefix,
                     sizeof(UINT64), 0);
   pContext->GetData(m_pQuerySphClear[(m_frameNum + 1) % 2].Get(), &tsSphClear,
                     sizeof(UINT64), 0);
@@ -223,12 +275,12 @@ void SphGpu::CollectTimestamps() {
                     &tsSphPositions, sizeof(UINT64), 0);
 
   // Convert to real time
-  m_sphCopyTime =
-      float(tsSphCopy - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphClearTime =
-      float(tsSphClear - tsSphCopy) / float(tsDisjoint.Frequency) * 1000.0f;
+      float(tsSphClear - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPrefixTime =
+      float(tsSphPrefix - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphCreateHashTime =
-      float(tsSphHash - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
+      float(tsSphHash - tsSphPrefix) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphDensityTime =
       float(tsSphDensity - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
@@ -238,7 +290,7 @@ void SphGpu::CollectTimestamps() {
   m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
                        float(tsDisjoint.Frequency) * 1000.0f;
 
-  m_sphOverallTime = m_sphCopyTime + m_sphClearTime + m_sphCreateHashTime +
+  m_sphOverallTime = m_sphPrefixTime + m_sphClearTime + m_sphCreateHashTime +
                      m_sphDensityTime + m_sphPressureTime + m_sphForcesTime +
                      m_sphPositionsTime;
 }
@@ -253,23 +305,13 @@ void SphGpu::ImGuiRender() {
     ImGui::Text("Sph pass: %.3f ms", m_sphOverallTime);
   }
   if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
-    ImGui::Text("Copy time: %f ms", m_sphCopyTime);
-    ImGui::Text("Sort time: %.3f ms", m_sortTime / 1000000.f);
     ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
+    ImGui::Text("Prefix time: %f ms", m_sphPrefixTime);
     ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
     ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
     ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
     ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
     ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
   }
-}
-
-UINT SphGpu::GetHash(XMINT3 cell) {
-  return ((cell.x * 73856093) ^ (cell.y * 19349663) ^ (cell.z * 83492791)) %
-         m_settings.TABLE_SIZE;
-}
-
-XMINT3 SphGpu::GetCell(Vector3 position) {
-  auto res = (position - m_settings.worldOffset) / m_settings.h;
-  return XMINT3(res.x, res.y, res.z);
+  m_frameNum++;
 }

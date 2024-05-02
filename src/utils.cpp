@@ -2,14 +2,23 @@
 
 #include "device-resources.h"
 #include "pch.h"
+#include <cstddef>
+#include <iostream>
 
 HRESULT DX::CompileAndCreateShader(const std::wstring &path,
                                    ID3D11DeviceChild **ppShader,
                                    const std::vector<std::string> &defines,
-                                   ID3DBlob **ppCode) {
+                                   ID3DBlob **ppCode,
+                                   const std::string &entrypoint,
+                                   const std::string &platformArg) {
+
   // Try to load shader's source code first
   FILE *pFile = nullptr;
   _wfopen_s(&pFile, path.c_str(), L"rb");
+  if (pFile == nullptr) {
+    std::wcerr << L"File not found: " << path.c_str() << std::endl;
+    exit(1);
+  }
   assert(pFile != nullptr);
   if (pFile == nullptr) {
     return E_FAIL;
@@ -42,6 +51,14 @@ HRESULT DX::CompileAndCreateShader(const std::wstring &path,
   } else if (ext == L"cs") {
     entryPoint = "cs";
     platform = "cs_5_0";
+  }
+
+  if (entrypoint != "") {
+    entryPoint = entrypoint;
+  }
+
+  if (platformArg != "") {
+    platform = platformArg;
   }
 
   // Setup flags
@@ -77,9 +94,10 @@ HRESULT DX::CompileAndCreateShader(const std::wstring &path,
   auto dxResources = DeviceResources::getInstance();
   auto pDevice = dxResources.m_pDevice;
 
+  std::string type = platform.substr(0, 2);
   // Create shader itself if anything else is OK
   if (SUCCEEDED(result)) {
-    if (ext == L"vs") {
+    if (type == "vs") {
       ID3D11VertexShader *pVertexShader = nullptr;
       result = pDevice->CreateVertexShader(pCode->GetBufferPointer(),
                                            pCode->GetBufferSize(), nullptr,
@@ -87,7 +105,7 @@ HRESULT DX::CompileAndCreateShader(const std::wstring &path,
       if (SUCCEEDED(result)) {
         *ppShader = pVertexShader;
       }
-    } else if (ext == L"ps") {
+    } else if (type == "ps") {
       ID3D11PixelShader *pPixelShader = nullptr;
       result = pDevice->CreatePixelShader(pCode->GetBufferPointer(),
                                           pCode->GetBufferSize(), nullptr,
@@ -95,7 +113,7 @@ HRESULT DX::CompileAndCreateShader(const std::wstring &path,
       if (SUCCEEDED(result)) {
         *ppShader = pPixelShader;
       }
-    } else if (ext == L"cs") {
+    } else if (type == "cs") {
       ID3D11ComputeShader *pComputeShader = nullptr;
       result = pDevice->CreateComputeShader(pCode->GetBufferPointer(),
                                             pCode->GetBufferSize(), nullptr,

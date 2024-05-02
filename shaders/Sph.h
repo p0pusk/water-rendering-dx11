@@ -36,10 +36,18 @@ static const float spikyGrad = -45.0f / (PI * pow(h, 6));
 static const float spikyLap = 45.0f / (PI * pow(h, 6));
 static const float h2 = pow(h, 2);
 
+static const uint3 MC_DIMENSIONS = uint3(256, 256, 256) + uint3(1, 1, 1);
+
+uint3 GetMCCell(uint index) {
+  return uint3(index % MC_DIMENSIONS.x,
+               (index / MC_DIMENSIONS.x) % MC_DIMENSIONS.y,
+               (index / MC_DIMENSIONS.x) / MC_DIMENSIONS.y);
+}
+
 uint GetHash(in uint3 cell) {
-  return ((uint)(cell.x * 73856093) ^ (uint)(cell.y * 19349663) ^
-          (uint)(cell.z * 83492791)) %
+  return ((uint)(cell.x * 92837111) ^ (uint)(cell.y * 689287499) ^
+          (uint)(cell.z * 283923481)) %
          g_tableSize;
 }
 
-uint3 GetCell(in float3 position) { return floor((position - worldPos) / h); }
+uint3 GetCell(in float3 position) { return (position - worldPos) / h; }

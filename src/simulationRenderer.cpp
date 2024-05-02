@@ -59,8 +59,6 @@ HRESULT SimRenderer::Init() {
   desc.Query = D3D11_QUERY_TIMESTAMP;
   pDevice->CreateQuery(&desc, &m_pQueryMarchingStart[0]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingStart[1]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingClear[0]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingClear[1]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingPreprocess[0]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingPreprocess[1]);
   pDevice->CreateQuery(&desc, &m_pQueryMarchingMain[0]);
@@ -174,9 +172,10 @@ HRESULT SimRenderer::InitMarching() {
 
   HRESULT result = S_OK;
 
-  UINT cubeNums = std::ceil(
-      m_settings.boundaryLen.x * m_settings.boundaryLen.y *
-      m_settings.boundaryLen.z / pow(m_settings.marchingCubeWidth, 3));
+  UINT cubeNums = (m_settings.marchingResolution.x + 1) *
+                  (m_settings.marchingResolution.y + 1) *
+                  (m_settings.marchingResolution.z + 1);
+
   UINT max_n = cubeNums * 6;
   // UINT max_n = 125.f * 1024.f * 1024.f / (4 * 3);
 
@@ -254,23 +253,34 @@ HRESULT SimRenderer::InitMarching() {
   {
     D3D11_BUFFER_DESC desc = {};
     desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.ByteWidth = cubeNums * sizeof(int);
+    desc.ByteWidth = cubeNums * sizeof(float);
     desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    desc.StructureByteStride = sizeof(int);
+    desc.StructureByteStride = sizeof(float);
 
-    result = pDevice->CreateBuffer(&desc, nullptr, &m_pVoxelGridBuffer);
+    result = pDevice->CreateBuffer(&desc, nullptr, &m_pVoxelGridBuffer1);
     DX::ThrowIfFailed(result, "Failed in voxel buffer");
-    result = DX::SetResourceName(m_pVoxelGridBuffer.Get(), "VoxelGridBuffer");
+    result = DX::SetResourceName(m_pVoxelGridBuffer1.Get(), "VoxelGridBuffer");
     DX::ThrowIfFailed(result);
   }
 
   // create VoxelGrid UAV
   {
-    result = DX::CreateBufferUAV(m_pVoxelGridBuffer.Get(), cubeNums,
-                                 "VoxelGridUAV", &m_pVoxelGridBufferUAV);
+    result = DX::CreateBufferUAV(m_pVoxelGridBuffer1.Get(), cubeNums,
+                                 "VoxelGridUAV", &m_pVoxelGridBufferUAV1);
     DX::ThrowIfFailed(result, "Failed in voxel UAV");
+  }
+
+  // create VoxelGrid for filters
+  {
+    DX::ThrowIfFailed(DX::CreateStructuredBuffer<float>(
+        cubeNums, D3D11_USAGE_DEFAULT, 0, nullptr, "FilteredGrid",
+        &m_pVoxelGridBuffer2));
+
+    DX::ThrowIfFailed(DX::CreateBufferUAV(m_pVoxelGridBuffer2.Get(), cubeNums,
+                                          "FilteredGridUAV",
+                                          &m_pVoxelGridBufferUAV2));
   }
 
   // create surface buffer
@@ -329,33 +339,33 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
-      L"shaders/MarchingCubes.cs",
+      L"shaders/marching-cubes/MarchingCubes.cs",
       (ID3D11DeviceChild **)m_pMarchingComputeShader.GetAddressOf());
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
-      L"shaders/MarchingPreprocess.cs",
+      L"shaders/marching-cubes/MarchingPreprocess.cs",
       (ID3D11DeviceChild **)m_pMarchingPreprocessCS.GetAddressOf());
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
-      L"shaders/MarchingClearVoxel.cs",
-      (ID3D11DeviceChild **)m_pMarchingClearCS.GetAddressOf());
-  DX::ThrowIfFailed(result);
-
-  result = DX::CompileAndCreateShader(
-      L"shaders/SurfaceCounter.cs",
+      L"shaders/marching-cubes/SurfaceCounter.cs",
       (ID3D11DeviceChild **)m_pSurfaceCountCS.GetAddressOf());
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
-      L"shaders/SmoothingPreprocess.cs",
+      L"shaders/marching-cubes/SmoothingPreprocess.cs",
       (ID3D11DeviceChild **)m_pSmoothingPreprocessCS.GetAddressOf());
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
-      L"shaders/BoxFilter.cs",
+      L"shaders/marching-cubes/BoxFilter.cs",
       (ID3D11DeviceChild **)m_pBoxFilterCS.GetAddressOf());
+  DX::ThrowIfFailed(result);
+
+  result = DX::CompileAndCreateShader(
+      L"shaders/marching-cubes/GaussFilter.cs",
+      (ID3D11DeviceChild **)m_pGaussFilterCS.GetAddressOf());
   DX::ThrowIfFailed(result);
 
   result = pDevice->CreateInputLayout(
@@ -375,7 +385,7 @@ HRESULT SimRenderer::InitMarching() {
 
 void SimRenderer::Update(float dt) {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-  pContext->Begin(m_pQueryDisjoint[m_frameNum % 2]);
+  // pContext->Begin(m_pQueryDisjoint[m_frameNum % 2]);
   if (m_settings.cpu) {
     m_sphAlgo.Update(dt, m_particles);
     if (m_settings.marching) {
@@ -400,66 +410,94 @@ void SimRenderer::Update(float dt) {
       std::cerr << "  " << e.what() << std::endl;
     }
     if (m_settings.marching) {
-      UINT cubeNums = std::ceil(
-          m_settings.boundaryLen.x * m_settings.boundaryLen.y *
-          m_settings.boundaryLen.z / pow(m_settings.marchingCubeWidth, 3));
+      UINT cubeNums = (m_settings.marchingResolution.x + 1) *
+                      (m_settings.marchingResolution.y + 1) *
+                      (m_settings.marchingResolution.z + 1);
 
       UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
-      pContext->CSSetShader(m_pSurfaceCountCS.Get(), nullptr, 0);
-      ID3D11ShaderResourceView *srvs[2] = {m_sphGpuAlgo.m_pSphBufferSRV.Get(),
-                                           m_sphGpuAlgo.m_pHashBufferSRV.Get()};
-      pContext->CSSetShaderResources(0, 2, srvs);
-      ID3D11UnorderedAccessView *uavs[1] = {m_pSurfaceBufferUAV.Get()};
-      pContext->CSSetUnorderedAccessViews(0, 1, uavs, 0);
       ID3D11Buffer *cb[1] = {m_sphGpuAlgo.m_pSphCB.Get()};
       pContext->CSSetConstantBuffers(0, 1, cb);
-      pContext->Dispatch(groupNumber, 1, 1);
 
-      pContext->CSSetConstantBuffers(0, 1, cb);
+      if (m_frameNum == 0) {
+        ID3D11UnorderedAccessView *uavs[1] = {m_pSurfaceBufferUAV.Get()};
+        ID3D11ShaderResourceView *srvs[3] = {
+            m_sphGpuAlgo.m_pSphBufferSRV.Get(),
+            m_sphGpuAlgo.m_pHashBufferSRV.Get(),
+            m_sphGpuAlgo.m_pEntriesBufferSRV.Get()};
 
-      ID3D11UnorderedAccessView *uavBuffers1[2] = {m_pVoxelGridBufferUAV.Get(),
-                                                   m_pSurfaceBufferUAV.Get()};
-      pContext->CSSetUnorderedAccessViews(0, 2, uavBuffers1, nullptr);
+        pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+        pContext->CSSetShaderResources(0, 3, srvs);
+        pContext->CSSetShader(m_pSurfaceCountCS.Get(), nullptr, 0);
+        pContext->Dispatch(groupNumber, 1, 1);
 
-      pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
-      pContext->CSSetShader(m_pMarchingClearCS.Get(), nullptr, 0);
-      // pContext->Dispatch(groupNumber, 1, 1);
-      pContext->End(m_pQueryMarchingClear[m_frameNum % 2]);
+        ID3D11UnorderedAccessView *uavsNULL[1] = {nullptr};
+        ID3D11ShaderResourceView *srvsNULL[3] = {nullptr, nullptr, nullptr};
+        pContext->CSSetUnorderedAccessViews(0, 1, uavsNULL, nullptr);
+        pContext->CSSetShaderResources(0, 3, srvsNULL);
+      }
 
-      ID3D11ShaderResourceView *srvBuffers[2] = {
-          m_sphGpuAlgo.m_pSphBufferSRV.Get(),
-          m_sphGpuAlgo.m_pHashBufferSRV.Get()};
-      pContext->CSSetShaderResources(0, 2, srvBuffers);
+      {
+        // pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
+        ID3D11UnorderedAccessView *uavs[2] = {m_pVoxelGridBufferUAV1.Get(),
+                                              m_pSurfaceBufferUAV.Get()};
+        ID3D11ShaderResourceView *srvs[3] = {
+            m_sphGpuAlgo.m_pSphBufferSRV.Get(),
+            m_sphGpuAlgo.m_pHashBufferSRV.Get(),
+            m_sphGpuAlgo.m_pEntriesBufferSRV.Get()};
 
-      pContext->CSSetShader(m_pSmoothingPreprocessCS.Get(), nullptr, 0);
-      // pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
-      // groupNumber = DivUp(m_num_particles, m_settings.blockSize);
-      pContext->Dispatch(groupNumber, 1, 1);
-      pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
+        pContext->CSSetShaderResources(0, 3, srvs);
+        pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
 
-      const UINT pCounters2[2] = {0, 0};
-      ID3D11UnorderedAccessView *uavBuffers2[3] = {
-          m_pVoxelGridBufferUAV.Get(), m_pMarchingOutBufferUAV.Get(),
-          m_pSurfaceBufferUAV.Get()};
+        pContext->CSSetShader(m_pSmoothingPreprocessCS.Get(), nullptr, 0);
+        // pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
 
-      pContext->CSSetUnorderedAccessViews(0, 3, uavBuffers2, pCounters2);
+        pContext->Dispatch(groupNumber, 1, 1);
+        // pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
 
-      groupNumber = DivUp(cubeNums, m_settings.blockSize);
-      pContext->CSSetShader(m_pMarchingComputeShader.Get(), nullptr, 0);
+        ID3D11UnorderedAccessView *uavsNULL[2] = {nullptr, nullptr};
+        ID3D11ShaderResourceView *srvsNULL[3] = {nullptr, nullptr, nullptr};
+        pContext->CSSetUnorderedAccessViews(0, 2, uavsNULL, nullptr);
+        pContext->CSSetShaderResources(0, 3, srvsNULL);
+      }
 
-      pContext->Dispatch(groupNumber, 1, 1);
-      pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
+      {
+        ID3D11UnorderedAccessView *uavs[2] = {m_pVoxelGridBufferUAV1.Get(),
+                                              m_pVoxelGridBufferUAV2.Get()};
+        pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+        pContext->CSSetShader(m_pBoxFilterCS.Get(), nullptr, 0);
+        pContext->Dispatch(groupNumber, 1, 1);
+      }
 
-      ID3D11UnorderedAccessView *nullUavBuffers[2] = {NULL, NULL};
-      ID3D11ShaderResourceView *nullSrvs[2] = {NULL, NULL};
-      pContext->CSSetUnorderedAccessViews(0, 2, nullUavBuffers, nullptr);
-      pContext->CSSetShaderResources(0, 2, nullSrvs);
+      {
+        ID3D11UnorderedAccessView *uavs[2] = {m_pVoxelGridBufferUAV2.Get(),
+                                              m_pVoxelGridBufferUAV1.Get()};
+        pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+        pContext->CSSetShader(m_pGaussFilterCS.Get(), nullptr, 0);
+        pContext->Dispatch(groupNumber, 1, 1);
+      }
 
-      pContext->CopyStructureCount(m_pCountBuffer.Get(), sizeof(UINT),
-                                   m_pMarchingOutBufferUAV.Get());
+      {
+        const UINT pCounters[3] = {0, 0, 0};
+        ID3D11UnorderedAccessView *uavs[3] = {m_pVoxelGridBufferUAV1.Get(),
+                                              m_pMarchingOutBufferUAV.Get(),
+                                              m_pSurfaceBufferUAV.Get()};
+
+        pContext->CSSetUnorderedAccessViews(0, 3, uavs, pCounters);
+
+        pContext->CSSetShader(m_pMarchingComputeShader.Get(), nullptr, 0);
+
+        pContext->Dispatch(groupNumber, 1, 1);
+        // pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
+
+        ID3D11UnorderedAccessView *uavsNULL[3] = {nullptr, nullptr, nullptr};
+        pContext->CSSetUnorderedAccessViews(0, 3, uavsNULL, nullptr);
+
+        pContext->CopyStructureCount(m_pCountBuffer.Get(), sizeof(UINT),
+                                     m_pMarchingOutBufferUAV.Get());
+      }
     }
   }
-  pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
+  // pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
 }
 
 void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
@@ -470,7 +508,7 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
     RenderSpheres(pSceneBuffer);
   }
   m_sphGpuAlgo.ImGuiRender();
-  ImGuiRender();
+  // ImGuiRender();
   m_frameNum++;
   ImGui::End();
 }
@@ -545,28 +583,24 @@ void SimRenderer::CollectTimestamps() {
   // Check whether timestamps were disjoint during the last frame
   D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
   pContext->GetData(m_pQueryDisjoint[m_frameNum % 2 + 1], &tsDisjoint,
-                    sizeof(tsDisjoint), 0);
+                    sizeof(D3D11_QUERY_DATA_TIMESTAMP_DISJOINT), 0);
 
   if (tsDisjoint.Disjoint) {
     return;
   }
 
   // Get all the timestamps
-  UINT64 tsMarchingBegin, tsMarchingClear, tsMarchingPreproc, tsMarchingMain;
+  UINT tsMarchingBegin, tsMarchingPreproc, tsMarchingMain;
 
   pContext->GetData(m_pQueryMarchingStart[m_frameNum % 2 + 1], &tsMarchingBegin,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQueryMarchingClear[m_frameNum % 2 + 1], &tsMarchingClear,
-                    sizeof(UINT64), 0);
+                    sizeof(UINT), 0);
   pContext->GetData(m_pQueryMarchingPreprocess[m_frameNum % 2 + 1],
-                    &tsMarchingPreproc, sizeof(UINT64), 0);
+                    &tsMarchingPreproc, sizeof(UINT), 0);
   pContext->GetData(m_pQueryMarchingMain[m_frameNum % 2 + 1], &tsMarchingMain,
-                    sizeof(UINT64), 0);
+                    sizeof(UINT), 0);
 
   // Convert to real time
-  m_marchingClear = float(tsMarchingClear - tsMarchingBegin) /
-                    float(tsDisjoint.Frequency) * 1000.0f;
-  m_marchingPrep = float(tsMarchingPreproc - tsMarchingClear) /
+  m_marchingPrep = float(tsMarchingPreproc - tsMarchingBegin) /
                    float(tsDisjoint.Frequency) * 1000.0f;
   m_marchingMain = float(tsMarchingMain - tsMarchingPreproc) /
                    float(tsDisjoint.Frequency) * 1000.0f;
