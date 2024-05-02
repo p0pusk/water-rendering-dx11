@@ -3,7 +3,7 @@
 #include "pch.h"
 
 struct Settings {
-  Vector3 worldOffset = Vector3(0, 0, 0);
+  Vector3 worldOffset = Vector3(-1, 0, -1);
   XMINT3 initCube = XMINT3(64, 64, 128);
   float h = 0.01f;
   Vector3 initLocalPos = Vector3(0.5, 0.5, 0.15);

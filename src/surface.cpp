@@ -99,7 +99,7 @@ HRESULT Surface::Init(Vector3 pos) {
     desc.StructureByteStride = 0;
 
     GeomBuffer geomBuffer;
-    geomBuffer.m = DirectX::XMMatrixScaling(10, 10, 10) *
+    geomBuffer.m = DirectX::XMMatrixScaling(50, 50, 50) *
                    DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z);
     auto m = DirectX::XMMatrixInverse(nullptr, geomBuffer.m);
     m = DirectX::XMMatrixTranspose(m);
