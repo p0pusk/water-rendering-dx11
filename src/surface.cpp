@@ -74,7 +74,7 @@ HRESULT Surface::Init(Vector3 pos) {
   if (SUCCEEDED(result)) {
     result = DX::CompileAndCreateShader(
         L"shaders/Surface.ps",
-        (ID3D11DeviceChild **)m_pPixelShader.GetAddressOf(), {"NO_LIGHTS"}, {});
+        (ID3D11DeviceChild **)m_pPixelShader.GetAddressOf(), {});
   }
 
   if (SUCCEEDED(result)) {

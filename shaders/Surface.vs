@@ -3,7 +3,7 @@
 cbuffer GeomBuffer : register (b1)
 {
     float4x4 model;
-    float4x4 norm;
+    float4x4 normM;
     float4 shine; // x - shininess
 };
 
@@ -28,7 +28,7 @@ VSOutput vs(VSInput vertex)
 
     result.pos = mul(vp, worldPos);
     result.worldPos = worldPos;
-    result.norm = mul(norm, float4(vertex.norm, 0)).xyz;
+    result.norm = mul(normM, float4(vertex.norm, 0)).xyz;
 
     return result;
 }

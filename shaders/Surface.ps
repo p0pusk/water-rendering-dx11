@@ -23,21 +23,7 @@ float4 ps(VSOutput pixel) : SV_Target0
 #ifdef NO_LIGHTS
     return color;
 #else
-    float3 viewDir = normalize(pixel.worldPos.xyz - cameraPos.xyz);
-    float3 reflectDir = reflect(viewDir, normalize(pixel.norm));
-    
-    float cosTheta = clamp(-1, 1, dot(normalize(pixel.norm), -viewDir));
-    
-    if (cosTheta < 0) {
-		return color;
-    }
-
-    float r0 = pow((0.33 / 2.33), 2);
-    float r = r0 + (1 - r0) * pow((1 - cosTheta), 5);
-
-    float4 finalColor = (1 - r) * float4(ColorWater(color.xyz, normalize(pixel.norm), pixel.worldPos.xyz, 10.0), color.w);
-    finalColor += r * float4(colorTexture.Sample(colorSampler, reflectDir).xyz, 1);
-
-    return finalColor;
+    return float4(CalculateColor(color.xyz, normalize(pixel.norm),
+                                 pixel.worldPos.xyz, 10.0f, false), color.w);
 #endif
 }

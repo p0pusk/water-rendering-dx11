@@ -1,39 +1,30 @@
-cbuffer SceneBuffer : register(b0)
-{
-    float4x4 vp;
-};
+#include "shaders/SceneCB.h"
 
 struct Triangle
 {
     float3 v[3];
+    float3 normal;
 };
 
 StructuredBuffer<Triangle> triangles : register(t0);
-
-struct VSInput
-{
-    uint instanceID : SV_InstanceID;
-    uint vertexID : SV_VertexID;
-};
 
 struct VSOutput
 {
     float4 pos : SV_Position;
     float3 worldPos : POSITION;
     float4 color : COLOR;
+    float3 norm : NORMAL;
 };
 
-VSOutput vs(VSInput vertex)
-{
-    VSOutput result;
+VSOutput vs(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID) {
+  VSOutput result;
 
-    float3 pos = triangles[vertex.instanceID].v[vertex.vertexID];
+  float3 pos = triangles[instanceID].v[vertexID];
 
-    result.pos = mul(vp, float4(pos, 1));
-    result.worldPos = pos;
-    float c = abs(0.05 - pos.y) * 100;
-    // result.color = lerp(float4(0, 0.25, 0.75, 0.5), float4(1, 0, 0, 1), c);
-    result.color = float4(0.2, 0.65, 0.75, 0.5);
+  result.pos = mul(vp, float4(pos, 1));
+  result.worldPos = pos;
+  result.color = float4(0.2, 0.65, 0.75, 0.1);
+  result.norm = triangles[instanceID].normal;
 
-    return result;
+  return result;
 }

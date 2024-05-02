@@ -219,6 +219,10 @@ bool Renderer::Update() {
   if (SUCCEEDED(result)) {
     m_sceneBuffer.vp = DirectX::XMMatrixMultiply(v, p);
     m_sceneBuffer.cameraPos = cameraPos;
+    m_sceneBuffer.lights[0].pos = Vector4(-5, 5, 1.5, 0);
+    m_sceneBuffer.lights[0].color = Vector4(0.7, 0.7, 0.7, 1);
+    m_sceneBuffer.lightCount.x = 1;
+    m_sceneBuffer.ambientColor = Vector4(0.4, 0.4, 0.4, 1);
 
     memcpy(subresource.pData, &m_sceneBuffer, sizeof(SceneBuffer));
 

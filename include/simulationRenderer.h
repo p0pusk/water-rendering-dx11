@@ -37,6 +37,7 @@ struct MarchingOutBuffer {
   Vector3 v1;
   Vector3 v2;
   Vector3 v3;
+  Vector3 normal;
 };
 
 struct MarchingVertex {

@@ -176,7 +176,7 @@ HRESULT SimRenderer::InitMarching() {
                   (m_settings.marchingResolution.y + 1) *
                   (m_settings.marchingResolution.z + 1);
 
-  UINT max_n = cubeNums * 6;
+  UINT max_n = cubeNums;
   // UINT max_n = 125.f * 1024.f * 1024.f / (4 * 3);
 
   // Create vertex buffer
@@ -515,6 +515,7 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
 
 void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   auto dxResources = DeviceResources::getInstance();
+
   auto pContext = dxResources.m_pDeviceContext;
   auto pTransDepthState = dxResources.m_pTransDepthState;
   auto pTransBlendState = dxResources.m_pTransBlendState;
@@ -523,7 +524,8 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
 
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   pContext->PSSetShader(m_pMarchingPixelShader.Get(), nullptr, 0);
-  ID3D11Buffer *cbuffers[] = {pSceneBuffer};
+
+  ID3D11Buffer *cbuffers[1] = {pSceneBuffer};
   pContext->VSSetConstantBuffers(0, 1, cbuffers);
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
 
@@ -538,10 +540,12 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   } else {
     pContext->IASetInputLayout(nullptr);
     pContext->VSSetShader(m_pMarchingIndirectVertexShader.Get(), nullptr, 0);
+
     ID3D11ShaderResourceView *srvs = {m_pMarchingOutBufferSRV.Get()};
     pContext->VSSetShaderResources(0, 1, &srvs);
     pContext->DrawInstancedIndirect(m_pCountBuffer.Get(), 0);
-    ID3D11ShaderResourceView *nullSRV[1] = {NULL};
+
+    ID3D11ShaderResourceView *nullSRV[1] = {nullptr};
     pContext->VSSetShaderResources(0, 1, nullSRV);
   }
 }

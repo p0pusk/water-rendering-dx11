@@ -23,7 +23,6 @@ void Sph::Init(std::vector<Particle> &particles) {
   const float &h = m_settings.h;
   const XMINT3 &cubeNum = m_settings.initCube;
   float separation = h - 0.1f * h;
-  Vector3 offset = {3 * h, 3 * h, 3 * h};
 
   particles.resize(cubeNum.x * cubeNum.y * cubeNum.z);
 
@@ -33,11 +32,11 @@ void Sph::Init(std::vector<Particle> &particles) {
         size_t particleIndex = x + (y + z * cubeNum.y) * cubeNum.x;
 
         Particle &p = particles[particleIndex];
-        p.position.x = m_settings.worldOffset.x + x * separation + offset.x +
+        p.position.x = m_settings.worldOffset.x + x * separation +
                        m_settings.initLocalPos.x;
-        p.position.y = m_settings.worldOffset.y + y * separation + offset.y +
+        p.position.y = m_settings.worldOffset.y + y * separation +
                        m_settings.initLocalPos.y;
-        p.position.z = m_settings.worldOffset.z + z * separation + offset.z +
+        p.position.z = m_settings.worldOffset.z + z * separation +
                        m_settings.initLocalPos.z;
         p.velocity = Vector3::Zero;
         p.hash = GetHash(GetCell(p.position));

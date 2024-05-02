@@ -7,7 +7,7 @@ RWStructuredBuffer<Particle> particles : register(u0);
 void CheckBoundary(in uint index)
 {
     float3 localPos = particles[index].position - worldPos;
-    float padding = marchingWidth;
+    float padding = 4 * h;
 
     if (localPos.y < padding)
     {

@@ -15,6 +15,7 @@ struct Edges
 struct Triangle
 {
     float3 v[3];
+    float3 normal;
 };
 
 StructuredBuffer<Particle> particles : register(t0);
@@ -22,11 +23,11 @@ RWStructuredBuffer<float> voxel_grid : register(u0);
 AppendStructuredBuffer<Triangle> triangles : register(u1);
 RWStructuredBuffer<SurfaceBuffer> surfaceBuffer : register(u2);
 
-static const float g_c = 0.2f;
+static const float g_c = 0.25f;
 
-bool voxel_get(in uint x, in uint y, in uint z)
+float voxel_get(in uint x, in uint y, in uint z)
 {
-    return voxel_grid[x + y * MC_DIMENSIONS.x + z * MC_DIMENSIONS.x * MC_DIMENSIONS.y] > g_c;
+    return voxel_grid[x + y * MC_DIMENSIONS.x + z * MC_DIMENSIONS.x * MC_DIMENSIONS.y];
 }
 
 
@@ -47,16 +48,57 @@ Triangulation get_triangulations(in uint x, in uint y, in uint z)
   */
 
     uint idx = 0;
-    idx |= (uint) (!voxel_get(x, y, z)) << 0;
-    idx |= (uint) (!voxel_get(x, y, z + 1)) << 1;
-    idx |= (uint) (!voxel_get(x + 1, y, z + 1)) << 2;
-    idx |= (uint) (!voxel_get(x + 1, y, z)) << 3;
-    idx |= (uint) (!voxel_get(x, y + 1, z)) << 4;
-    idx |= (uint) (!voxel_get(x, y + 1, z + 1)) << 5;
-    idx |= (uint) (!voxel_get(x + 1, y + 1, z + 1)) << 6;
-    idx |= (uint) (!voxel_get(x + 1, y + 1, z)) << 7;
+    idx |= (uint) (voxel_get(x, y, z) > g_c) << 0;
+    idx |= (uint) (voxel_get(x, y, z + 1) > g_c) << 1;
+    idx |= (uint) (voxel_get(x + 1, y, z + 1) > g_c) << 2;
+    idx |= (uint) (voxel_get(x + 1, y, z) > g_c) << 3;
+    idx |= (uint) (voxel_get(x, y + 1, z) > g_c) << 4;
+    idx |= (uint) (voxel_get(x, y + 1, z + 1) > g_c) << 5;
+    idx |= (uint) (voxel_get(x + 1, y + 1, z + 1) > g_c) << 6;
+    idx |= (uint) (voxel_get(x + 1, y + 1, z) > g_c) << 7;
 
     return TRIANGULATIONS[idx];
+}
+
+float3 get_normal(in uint3 pos) {
+  float3 gradient;
+
+  float xp, xn, yp, yn, zp, zn;
+  if (pos.x + 1 < MC_DIMENSIONS.x) {
+    xp = voxel_grid[pos.x + 1 + pos.y * MC_DIMENSIONS.x + pos.z *
+      MC_DIMENSIONS.x * MC_DIMENSIONS.y];
+  }
+
+  if (pos.y + 1 < MC_DIMENSIONS.y) {
+    yp = voxel_grid[pos.x + (pos.y + 1) * MC_DIMENSIONS.x + pos.z *
+      MC_DIMENSIONS.x * MC_DIMENSIONS.y];
+  }
+
+  if (pos.z + 1 < MC_DIMENSIONS.z) {
+    zp = voxel_grid[pos.x + pos.y * MC_DIMENSIONS.x + (pos.z + 1) *
+      MC_DIMENSIONS.x * MC_DIMENSIONS.y];
+  }
+
+  if (pos.x - 1 >= 0) {
+    xn = voxel_grid[pos.x - 1 + pos.y * MC_DIMENSIONS.x + pos.z *
+      MC_DIMENSIONS.x * MC_DIMENSIONS.y];
+  }
+
+  if (pos.y - 1 >= 0) {
+    yn = voxel_grid[pos.x + (pos.y - 1) * MC_DIMENSIONS.x + pos.z *
+      MC_DIMENSIONS.x * MC_DIMENSIONS.y];
+  }
+
+  if (pos.x - 1 >= 0) {
+    zn = voxel_grid[pos.x + pos.y * MC_DIMENSIONS.x + (pos.z - 1) *
+      MC_DIMENSIONS.x * MC_DIMENSIONS.y];
+  }
+
+  gradient.x = (xp - xn) / 2;
+  gradient.y = (yp - yn) / 2;
+  gradient.z = (zp - zn) / 2;
+ 
+  return normalize(gradient);
 }
 
 float3 get_point(in uint edge_index, in uint3 pos)
@@ -71,9 +113,9 @@ float3 get_point(in uint edge_index, in uint3 pos)
         (p2 + pos - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
 
     uint3 cell1 = p1 + pos;
-    uint index1 = cell1.x + cell1.y * MC_DIMENSIONS.x + cell1.z * MC_DIMENSIONS.y * MC_DIMENSIONS.z;
+    uint index1 = cell1.x + cell1.y * MC_DIMENSIONS.x + cell1.z * MC_DIMENSIONS.x * MC_DIMENSIONS.y;
     uint3 cell2 = p2 + pos;
-    uint index2 = cell2.x + cell2.y * MC_DIMENSIONS.x + cell2.z * MC_DIMENSIONS.y * MC_DIMENSIONS.z;
+    uint index2 = cell2.x + cell2.y * MC_DIMENSIONS.x + cell2.z * MC_DIMENSIONS.x * MC_DIMENSIONS.y;
     float alpha = (g_c - voxel_grid[index1]) / (voxel_grid[index2] - voxel_grid[index1]);
 
     return (1 - alpha) * worldP1 + alpha * worldP2;
@@ -88,6 +130,7 @@ void march_cube(in uint3 pos)
         res.v[0] = get_point(edges.data[i], pos);
         res.v[1] = get_point(edges.data[i + 1], pos);
         res.v[2] = get_point(edges.data[i + 2], pos);
+        res.normal = get_normal(pos);
         triangles.Append(res);
     }
 }
