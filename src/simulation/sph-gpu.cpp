@@ -143,6 +143,14 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     std::cerr << "Failed to create queires!" << std::endl;
     throw;
   }
+
+  try {
+    m_cScanCS.OnD3D11CreateDevice(
+        DeviceResources::getInstance().m_pDevice.Get());
+  } catch (...) {
+    std::cerr << "Failed to create cScanCS!" << std::endl;
+    throw;
+  }
 }
 
 void SphGpu::CreateQueries() {
@@ -173,9 +181,9 @@ void SphGpu::CreateQueries() {
 
 void SphGpu::Update() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-  // pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
+  pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
 
-  // pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());
+  pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
 
@@ -195,22 +203,32 @@ void SphGpu::Update() {
 
     pContext->CSSetShader(m_pCreateHashCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    // pContext->End(m_pQuerySphClear[m_frameNum % 2].Get());
-
-    pContext->CSSetShader(m_pPrefixSumCS.Get(), nullptr, 0);
-    pContext->Dispatch(1, 1, 1);
-    // pContext->End(m_pQuerySphPrefix[m_frameNum % 2].Get());
-
+    pContext->End(m_pQuerySphClear[m_frameNum % 2].Get());
     ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
-    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+    pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
+    ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
+    pContext->CSSetShaderResources(0, 1, nsrvs);
+
+    DX::ThrowIfFailed(
+        m_cScanCS.ScanCS(pContext.Get(), (INT)(m_settings.TABLE_SIZE + 1),
+                         m_pHashBufferSRV.Get(), m_pHashBufferUAV.Get(),
+                         m_pScanHelperBufferSRV.Get(),
+                         m_pScanHelperBufferUAV.Get()),
+        "Failed in scan");
+    pContext->CSSetConstantBuffers(0, 1, cb);
+    pContext->CSSetShaderResources(0, 1, srvs);
+    pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+    // pContext->CSSetShader(m_pPrefixSumCS.Get(), nullptr, 0);
+    // pContext->Dispatch(1, 1, 1);
+    pContext->End(m_pQuerySphPrefix[m_frameNum % 2].Get());
+
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
     pContext->CSSetShader(m_pCreateEntriesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
 
-    ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
     pContext->CSSetShaderResources(0, 1, nsrvs);
-    // pContext->End(m_pQuerySphHash[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphHash[m_frameNum % 2].Get());
   }
 
   {
@@ -223,22 +241,22 @@ void SphGpu::Update() {
 
     pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    // pContext->End(m_pQuerySphDensity[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphDensity[m_frameNum % 2].Get());
     pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    // pContext->End(m_pQuerySphPressure[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphPressure[m_frameNum % 2].Get());
     pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    // pContext->End(m_pQuerySphForces[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphForces[m_frameNum % 2].Get());
     pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    // pContext->End(m_pQuerySphPosition[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphPosition[m_frameNum % 2].Get());
 
     ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
     ID3D11UnorderedAccessView *nuavs[1] = {nullptr};
     pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
     pContext->CSSetShaderResources(0, 2, nsrvs);
-    // pContext->End(m_pQueryDisjoint[m_frameNum % 2].Get());
+    pContext->End(m_pQueryDisjoint[m_frameNum % 2].Get());
   }
 }
 

@@ -10,7 +10,11 @@
 StructuredBuffer<uint> Input : register( t0 );     // Change uint2 here if scan other types, and
 RWStructuredBuffer<uint> Result : register( u0 );  // also here
 
-#define groupthreads 1024
+cbuffer ConstBuffer : register( b0 ) {
+  uint4 params;
+};
+
+#define groupthreads 512
 groupshared uint2 bucket[groupthreads];             // Change uint4 to the "type x2" if scan other types, e.g.
                                                     // if scan uint2, then put uint4 here,
                                                     // if scan float, then put float2 here
@@ -79,24 +83,27 @@ void CSScan( uint3 DTid, uint GI, uint x )         // Change the type of x here 
         
         n = !n;
     }    
-
-    Result[DTid.x] = bucket[GI].y + x;
 }
 
 // scan in each bucket
 [numthreads( groupthreads, 1, 1 )]
 void CSScanInBucket( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint GI: SV_GroupIndex )
 {
-    uint x = Input[DTid.x];                    // Change the type of x here if scan other types 
+    uint x = Input[DTid.x + params.x];                    // Change the type of x here if scan other types 
     CSScan( DTid, GI, x );
+    Result[DTid.x + params.x] = bucket[GI].y + x;
 }
 
 // record and scan the sum of each bucket
 [numthreads( groupthreads, 1, 1 )]
 void CSScanBucketResult( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint GI: SV_GroupIndex )
 {
-    uint x = Input[DTid.x*groupthreads - 1];   // Change the type of x here if scan other types
+    uint x = 0;
+    if (DTid.x * groupthreads - 1 + params.x >= params.x) {
+        x = Input[DTid.x * groupthreads - 1 + params.x];   // Change the type of x here if scan other types
+    }
     CSScan( DTid, GI, x );
+    Result[DTid.x] = bucket[GI].y + x;
 }
 
 StructuredBuffer<uint> Input1 : register( t1 );
@@ -105,5 +112,5 @@ StructuredBuffer<uint> Input1 : register( t1 );
 [numthreads( groupthreads, 1, 1 )]
 void CSScanAddBucketResult( uint3 Gid : SV_GroupID, uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint GI: SV_GroupIndex )
 {
-    Result[DTid.x] = Input[DTid.x] + Input1[Gid.x];
+    Result[DTid.x + params.x] = Input[DTid.x + params.x] + Input1[Gid.x];
 }

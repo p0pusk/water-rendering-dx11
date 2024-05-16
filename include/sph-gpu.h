@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "ScanCS.h"
 #include "device-resources.h"
 #include "imgui.h"
 #include "particle.h"
@@ -35,6 +36,8 @@ public:
     m_pQuerySphPosition.resize(2);
   }
 
+  ~SphGpu() { m_cScanCS.OnD3D11DestroyDevice(); }
+
   void Init(const std::vector<Particle> &particles);
   void Update();
   void Render();
@@ -57,6 +60,7 @@ private:
   UINT m_num_particles;
 
   SphCB m_sphCB;
+  CScanCS m_cScanCS;
   ComPtr<ID3D11Buffer> m_pHashBuffer;
   ComPtr<ID3D11Buffer> m_pEntriesBuffer;
   ComPtr<ID3D11Buffer> m_pScanHelperBuffer;

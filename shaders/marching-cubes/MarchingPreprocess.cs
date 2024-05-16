@@ -60,7 +60,7 @@ void update2(in uint index)
       return;
     }
 
-    float3 globalPos = ((float3)cell + float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
+    float3 globalPos = ((float3)cell - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
     uint key, idx, startIdx, entriesNum;
     float density = 0;
     float d = 0;
@@ -75,7 +75,7 @@ void update2(in uint index)
           for (uint c = 0; c < entriesNum; ++c) {
             idx = entries[startIdx + c];
             d = distance(particles[idx].position, globalPos);
-            if (d < h) {
+            if (d < marchingWidth) {
               density += mass * poly6 * pow(h2 - d*d, 3);
             }
           }

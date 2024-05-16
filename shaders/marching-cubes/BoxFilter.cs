@@ -3,7 +3,7 @@
 #define KERNEL_SIZE_X 3
 #define KERNEL_SIZE_Y 3
 #define KERNEL_SIZE_Z 3
-#define KERNEL_WEIGHT 1.f / 9.f
+#define KERNEL_WEIGHT 1.f / 27.f
 
 RWStructuredBuffer<float> inputMatrix : register(u0);
 RWStructuredBuffer<float> outputMatrix : register(u1);

@@ -40,6 +40,9 @@ private:
   ID3D11ComputeShader *m_pScan3CS;
   ID3D11Buffer *m_pcbCS;
 
+  ID3D11Buffer *m_pChunkBuf;
+  ID3D11ShaderResourceView *m_pChunkBufRV;
+  ID3D11UnorderedAccessView *m_pChunkBufUAV;
   ID3D11Buffer *m_pAuxBuf;
   ID3D11ShaderResourceView *m_pAuxBufRV;
   ID3D11UnorderedAccessView *m_pAuxBufUAV;
@@ -47,4 +50,6 @@ private:
   struct CB_CS {
     UINT param[4];
   };
+
+  CB_CS m_cb;
 };
