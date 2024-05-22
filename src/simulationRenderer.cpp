@@ -176,13 +176,13 @@ HRESULT SimRenderer::InitMarching() {
                   (m_settings.marchingResolution.y + 1) *
                   (m_settings.marchingResolution.z + 1);
 
-  UINT max_n = cubeNums;
+  UINT max_n = 2147483648;
   // UINT max_n = 125.f * 1024.f * 1024.f / (4 * 3);
 
   // Create vertex buffer
   {
     D3D11_BUFFER_DESC desc = {};
-    desc.ByteWidth = (UINT)(max_n * sizeof(Vector3));
+    desc.ByteWidth = (UINT)(max_n / sizeof(Vector3) * sizeof(Vector3));
     desc.Usage = D3D11_USAGE_DYNAMIC;
     desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
@@ -201,7 +201,8 @@ HRESULT SimRenderer::InitMarching() {
   {
     D3D11_BUFFER_DESC desc = {};
     desc.Usage = D3D11_USAGE_DEFAULT;
-    desc.ByteWidth = max_n * sizeof(MarchingOutBuffer);
+    desc.ByteWidth =
+        max_n / sizeof(MarchingOutBuffer) * sizeof(MarchingOutBuffer);
     desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
@@ -215,19 +216,14 @@ HRESULT SimRenderer::InitMarching() {
   }
 
   // create out buffer uav
-  {
-    result = DX::CreateBufferUAV(m_pMarchingOutBuffer.Get(), max_n,
-                                 "MarchingOutUAV", &m_pMarchingOutBufferUAV,
-                                 D3D11_BUFFER_UAV_FLAG_APPEND);
-    DX::ThrowIfFailed(result, "Failed in UAV");
-  }
+  result = DX::CreateBufferUAV(
+      m_pMarchingOutBuffer.Get(), max_n / sizeof(MarchingOutBuffer),
+      "MarchingOutUAV", &m_pMarchingOutBufferUAV, D3D11_BUFFER_UAV_FLAG_APPEND);
 
   // create out buffer srv
-  {
-    result = DX::CreateBufferSRV(m_pMarchingOutBuffer.Get(), max_n,
-                                 "MarchingOutSRV", &m_pMarchingOutBufferSRV);
-    DX::ThrowIfFailed(result, "Failed in SRV");
-  }
+  result = DX::CreateBufferSRV(m_pMarchingOutBuffer.Get(),
+                               max_n / sizeof(MarchingOutBuffer),
+                               "MarchingOutSRV", &m_pMarchingOutBufferSRV);
 
   // create counter buffer
   {
@@ -417,6 +413,7 @@ void SimRenderer::Update(float dt) {
       UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
       ID3D11Buffer *cb[1] = {m_sphGpuAlgo.m_pSphCB.Get()};
       pContext->CSSetConstantBuffers(0, 1, cb);
+      // pContext->End(m_pQueryDisjoint[m_frameNum % 2 + 1]);
 
       if (m_frameNum == 0) {
         ID3D11UnorderedAccessView *uavs[1] = {m_pSurfaceBufferUAV.Get()};
@@ -437,7 +434,7 @@ void SimRenderer::Update(float dt) {
       }
 
       {
-        // pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
+        pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
         ID3D11UnorderedAccessView *uavs[2] = {m_pVoxelGridBufferUAV1.Get(),
                                               m_pSurfaceBufferUAV.Get()};
         ID3D11ShaderResourceView *srvs[3] = {
@@ -452,7 +449,7 @@ void SimRenderer::Update(float dt) {
         // pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
 
         pContext->Dispatch(groupNumber, 1, 1);
-        // pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
+        pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
 
         ID3D11UnorderedAccessView *uavsNULL[2] = {nullptr, nullptr};
         ID3D11ShaderResourceView *srvsNULL[3] = {nullptr, nullptr, nullptr};
@@ -487,7 +484,7 @@ void SimRenderer::Update(float dt) {
         pContext->CSSetShader(m_pMarchingComputeShader.Get(), nullptr, 0);
 
         pContext->Dispatch(groupNumber, 1, 1);
-        // pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
+        pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
 
         ID3D11UnorderedAccessView *uavsNULL[3] = {nullptr, nullptr, nullptr};
         pContext->CSSetUnorderedAccessViews(0, 3, uavsNULL, nullptr);
@@ -497,7 +494,7 @@ void SimRenderer::Update(float dt) {
       }
     }
   }
-  // pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
+  pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
 }
 
 void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
@@ -508,7 +505,7 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
     RenderSpheres(pSceneBuffer);
   }
   m_sphGpuAlgo.ImGuiRender();
-  // ImGuiRender();
+  ImGuiRender();
   m_frameNum++;
   ImGui::End();
 }
@@ -613,12 +610,10 @@ void SimRenderer::CollectTimestamps() {
 void SimRenderer::ImGuiRender() {
   CollectTimestamps();
   if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
-    ImGui::Text("MarchingCubes pass: %.3f ms",
-                m_marchingClear + m_marchingMain + m_marchingPrep);
+    ImGui::Text("MarchingCubes pass: %.3f ms", m_marchingMain + m_marchingPrep);
   }
   if (ImGui::CollapsingHeader("MarchingCubes"),
       ImGuiTreeNodeFlags_DefaultOpen) {
-    ImGui::Text("Clear time: %.3f ms", m_marchingClear);
     ImGui::Text("Preprocess time: %.3f ms", m_marchingPrep);
     ImGui::Text("Main time: %.3f ms", m_marchingMain);
   }

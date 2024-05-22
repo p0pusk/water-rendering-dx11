@@ -3,7 +3,7 @@
 struct Triangle
 {
     float3 v[3];
-    float3 normal;
+    float3 normal[3];
 };
 
 StructuredBuffer<Triangle> triangles : register(t0);
@@ -24,7 +24,7 @@ VSOutput vs(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID) {
   result.pos = mul(vp, float4(pos, 1));
   result.worldPos = pos;
   result.color = float4(1, 1, 1, 0.02);
-  result.norm = triangles[instanceID].normal;
+  result.norm = triangles[instanceID].normal[vertexID];
 
   return result;
 }

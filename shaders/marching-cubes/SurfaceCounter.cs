@@ -30,7 +30,7 @@ void count(in uint index)
         for (uint c = 0; c < entriesNum; ++c) {
           idx = entries[startIdx + c];
           d = distance(globalPos, particles[idx].position);
-          if (d < marchingWidth / 2) {
+          if (d < h) {
             count++;
           }
         }

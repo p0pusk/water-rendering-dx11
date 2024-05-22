@@ -218,8 +218,6 @@ void SphGpu::Update() {
     pContext->CSSetConstantBuffers(0, 1, cb);
     pContext->CSSetShaderResources(0, 1, srvs);
     pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
-    // pContext->CSSetShader(m_pPrefixSumCS.Get(), nullptr, 0);
-    // pContext->Dispatch(1, 1, 1);
     pContext->End(m_pQuerySphPrefix[m_frameNum % 2].Get());
 
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);

@@ -34,7 +34,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
           for (uint c = 0; c < entriesNum; ++c) {
             idx = entries[startIdx + c];
             d = distance(particles[idx].position, globalPos);
-            if (d < marchingWidth / 2) {
+            if (d < h) {
               sum++;
             }
           }

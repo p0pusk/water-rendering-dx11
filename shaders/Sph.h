@@ -36,7 +36,7 @@ static const float spikyGrad = -45.0f / (PI * pow(h, 6));
 static const float spikyLap = 45.0f / (PI * pow(h, 6));
 static const float h2 = pow(h, 2);
 
-static const uint3 MC_DIMENSIONS = uint3(256, 256, 256) + uint3(1, 1, 1);
+static const uint3 MC_DIMENSIONS = uint3(128, 128, 128) + uint3(1, 1, 1);
 
 uint3 GetMCCell(uint index) {
   return uint3(index % MC_DIMENSIONS.x,

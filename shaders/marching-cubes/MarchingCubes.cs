@@ -14,8 +14,8 @@ struct Edges
 
 struct Triangle
 {
-    float3 v[3];
-    float3 normal;
+    float3 pos[3];
+    float3 norm[3];
 };
 
 StructuredBuffer<Particle> particles : register(t0);
@@ -60,7 +60,7 @@ Triangulation get_triangulations(in uint x, in uint y, in uint z)
     return TRIANGULATIONS[idx];
 }
 
-float3 get_normal(in uint3 pos) {
+float3 get_gradient(in uint3 pos) {
   float3 gradient;
 
   float xp, xn, yp, yn, zp, zn;
@@ -98,10 +98,15 @@ float3 get_normal(in uint3 pos) {
   gradient.y = (yp - yn) / 2;
   gradient.z = (zp - zn) / 2;
  
-  return normalize(gradient);
+  return gradient;
 }
 
-float3 get_point(in uint edge_index, in uint3 pos)
+struct Vertex {
+  float3 pos;
+  float3 norm;
+};
+
+Vertex get_point(in uint edge_index, in uint3 pos)
 {
     Edges point_indecies = EDGES_TABLE[edge_index];
     uint3 p1 = POINTS_TABLE[point_indecies.data[0]];
@@ -118,7 +123,18 @@ float3 get_point(in uint edge_index, in uint3 pos)
     uint index2 = cell2.x + cell2.y * MC_DIMENSIONS.x + cell2.z * MC_DIMENSIONS.x * MC_DIMENSIONS.y;
     float alpha = (g_c - voxel_grid[index1]) / (voxel_grid[index2] - voxel_grid[index1]);
 
-    return (1 - alpha) * worldP1 + alpha * worldP2;
+
+    Vertex res;
+
+    res.pos = (1 - alpha) * worldP1 + alpha * worldP2;
+
+    float t = (g_c - voxel_grid[index1]) / (voxel_grid[index2] - voxel_grid[index1]);
+    float3 normal1 = get_gradient(cell1);
+    float3 normal2 = get_gradient(cell2);
+
+    res.norm = normalize(lerp(normal1, normal2, t));
+
+    return res;
 }
 
 void march_cube(in uint3 pos)
@@ -127,10 +143,16 @@ void march_cube(in uint3 pos)
     for (int i = 0; i < 15 && edges.data[i] != -1; i += 3)
     {
         Triangle res;
-        res.v[0] = get_point(edges.data[i], pos);
-        res.v[1] = get_point(edges.data[i + 1], pos);
-        res.v[2] = get_point(edges.data[i + 2], pos);
-        res.normal = get_normal(pos);
+        Vertex v;
+        v = get_point(edges.data[i], pos);
+        res.pos[0] = v.pos;
+        res.norm[0] = v.norm;
+        v = get_point(edges.data[i + 1], pos);
+        res.pos[1] = v.pos;
+        res.norm[1] = v.norm;
+        v = get_point(edges.data[i + 2], pos);
+        res.pos[2] = v.pos;
+        res.norm[2] = v.norm;
         triangles.Append(res);
     }
 }

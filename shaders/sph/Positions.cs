@@ -7,7 +7,7 @@ RWStructuredBuffer<Particle> particles : register(u0);
 void CheckBoundary(in uint index)
 {
     float3 localPos = particles[index].position - worldPos;
-    float padding = 4 * h;
+    float padding = 4 * marchingWidth;
 
     if (localPos.y < padding)
     {
@@ -48,6 +48,43 @@ void CheckBoundary(in uint index)
     particles[index].position = localPos + worldPos;
 }
 
+
+void ForceBoundary(in uint index) {
+    float3 localPos = particles[index].position - worldPos;
+    float padding = 4 * marchingWidth;
+    float boundaryRepulsion = 10000.0f * particles[index].density;
+
+    if (localPos.y < padding)
+    {
+        particles[index].force.y += boundaryRepulsion * (padding - localPos.y);
+    }
+
+    if (localPos.y > -padding + boundaryLen.y)
+    {
+        particles[index].force.y -= boundaryRepulsion * (localPos.y + padding - boundaryLen.y);
+    }
+
+    if (localPos.x < padding)
+    {
+        particles[index].force.x += boundaryRepulsion * (padding - localPos.x);
+    }
+
+    if (localPos.x > -padding + boundaryLen.x)
+    {
+        particles[index].force.x -= boundaryRepulsion * (localPos.x + padding - boundaryLen.x);
+    }
+
+    if (localPos.z < padding)
+    {
+        particles[index].force.z += boundaryRepulsion * (padding - localPos.z);
+    }
+
+    if (localPos.z > -padding + boundaryLen.z)
+    {
+        particles[index].force.z -= boundaryRepulsion * (localPos.z + padding - boundaryLen.z);
+    }
+}
+
 [numthreads(BLOCK_SIZE, 1, 1)]
 void cs(uint3 DTid : SV_DispatchThreadID)
 {
@@ -56,9 +93,10 @@ void cs(uint3 DTid : SV_DispatchThreadID)
       return;
     }
 
+    ForceBoundary(DTid.x);
+
     particles[DTid.x].velocity += dt.x * particles[DTid.x].force / particles[DTid.x].density;
     particles[DTid.x].position += dt.x * particles[DTid.x].velocity;
 
     // boundary condition
-    CheckBoundary(DTid.x);
 }
