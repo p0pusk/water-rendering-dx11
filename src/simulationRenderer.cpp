@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 
+#include "CommonStates.h"
+#include "Effects.h"
 #include "SimpleMath.h"
 #include "device-resources.h"
 #include "imgui.h"
@@ -51,18 +53,24 @@ HRESULT SimRenderer::Init() {
   }
 
   auto pDevice = DeviceResources::getInstance().m_pDevice;
+
+  m_states = std::make_unique<CommonStates>(pDevice.Get());
+  m_fxFactory = std::make_unique<EffectFactory>(pDevice.Get());
+
   D3D11_QUERY_DESC desc{};
   desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
   desc.MiscFlags = 0;
-  pDevice->CreateQuery(&desc, &m_pQueryDisjoint[0]);
-  pDevice->CreateQuery(&desc, &m_pQueryDisjoint[1]);
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &(m_pQueryDisjoint[0])));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &(m_pQueryDisjoint[1])));
   desc.Query = D3D11_QUERY_TIMESTAMP;
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingStart[0]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingStart[1]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingPreprocess[0]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingPreprocess[1]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingMain[0]);
-  pDevice->CreateQuery(&desc, &m_pQueryMarchingMain[1]);
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &(m_pQueryMarchingStart[0])));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &(m_pQueryMarchingStart[1])));
+  DX::ThrowIfFailed(
+      pDevice->CreateQuery(&desc, &(m_pQueryMarchingPreprocess[0])));
+  DX::ThrowIfFailed(
+      pDevice->CreateQuery(&desc, &(m_pQueryMarchingPreprocess[1])));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &(m_pQueryMarchingMain[0])));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &(m_pQueryMarchingMain[1])));
 
   assert(SUCCEEDED(result));
 
@@ -381,7 +389,6 @@ HRESULT SimRenderer::InitMarching() {
 
 void SimRenderer::Update(float dt) {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-  // pContext->Begin(m_pQueryDisjoint[m_frameNum % 2]);
   if (m_settings.cpu) {
     m_sphAlgo.Update(dt, m_particles);
     if (m_settings.marching) {
@@ -406,6 +413,8 @@ void SimRenderer::Update(float dt) {
       std::cerr << "  " << e.what() << std::endl;
     }
     if (m_settings.marching) {
+      pContext->Begin(m_pQueryDisjoint[m_frameNum % 2]);
+      pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
       UINT cubeNums = (m_settings.marchingResolution.x + 1) *
                       (m_settings.marchingResolution.y + 1) *
                       (m_settings.marchingResolution.z + 1);
@@ -413,7 +422,6 @@ void SimRenderer::Update(float dt) {
       UINT groupNumber = DivUp(cubeNums, m_settings.blockSize);
       ID3D11Buffer *cb[1] = {m_sphGpuAlgo.m_pSphCB.Get()};
       pContext->CSSetConstantBuffers(0, 1, cb);
-      // pContext->End(m_pQueryDisjoint[m_frameNum % 2 + 1]);
 
       if (m_frameNum == 0) {
         ID3D11UnorderedAccessView *uavs[1] = {m_pSurfaceBufferUAV.Get()};
@@ -434,7 +442,6 @@ void SimRenderer::Update(float dt) {
       }
 
       {
-        pContext->End(m_pQueryMarchingStart[m_frameNum % 2]);
         ID3D11UnorderedAccessView *uavs[2] = {m_pVoxelGridBufferUAV1.Get(),
                                               m_pSurfaceBufferUAV.Get()};
         ID3D11ShaderResourceView *srvs[3] = {
@@ -449,7 +456,6 @@ void SimRenderer::Update(float dt) {
         // pContext->CSSetShader(m_pMarchingPreprocessCS.Get(), nullptr, 0);
 
         pContext->Dispatch(groupNumber, 1, 1);
-        pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
 
         ID3D11UnorderedAccessView *uavsNULL[2] = {nullptr, nullptr};
         ID3D11ShaderResourceView *srvsNULL[3] = {nullptr, nullptr, nullptr};
@@ -473,6 +479,7 @@ void SimRenderer::Update(float dt) {
         pContext->Dispatch(groupNumber, 1, 1);
       }
 
+      pContext->End(m_pQueryMarchingPreprocess[m_frameNum % 2]);
       {
         const UINT pCounters[3] = {0, 0, 0};
         ID3D11UnorderedAccessView *uavs[3] = {m_pVoxelGridBufferUAV1.Get(),
@@ -484,7 +491,6 @@ void SimRenderer::Update(float dt) {
         pContext->CSSetShader(m_pMarchingComputeShader.Get(), nullptr, 0);
 
         pContext->Dispatch(groupNumber, 1, 1);
-        pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
 
         ID3D11UnorderedAccessView *uavsNULL[3] = {nullptr, nullptr, nullptr};
         pContext->CSSetUnorderedAccessViews(0, 3, uavsNULL, nullptr);
@@ -492,9 +498,10 @@ void SimRenderer::Update(float dt) {
         pContext->CopyStructureCount(m_pCountBuffer.Get(), sizeof(UINT),
                                      m_pMarchingOutBufferUAV.Get());
       }
+      pContext->End(m_pQueryMarchingMain[m_frameNum % 2]);
+      pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
     }
   }
-  pContext->End(m_pQueryDisjoint[m_frameNum % 2]);
 }
 
 void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
@@ -516,8 +523,8 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   auto pContext = dxResources.m_pDeviceContext;
   auto pTransDepthState = dxResources.m_pTransDepthState;
   auto pTransBlendState = dxResources.m_pTransBlendState;
-  pContext->OMSetDepthStencilState(pTransDepthState.Get(), 0);
-  pContext->OMSetBlendState(pTransBlendState.Get(), nullptr, 0xffffffff);
+  pContext->OMSetDepthStencilState(m_states->DepthReadReverseZ(), 0);
+  pContext->OMSetBlendState(m_states->AlphaBlend(), nullptr, 0xffffffff);
 
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
   pContext->PSSetShader(m_pMarchingPixelShader.Get(), nullptr, 0);
@@ -581,9 +588,12 @@ void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {
 void SimRenderer::CollectTimestamps() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
 
-  // Check whether timestamps were disjoint during the last frame
+  while (pContext->GetData(m_pQueryDisjoint[(m_frameNum + 1) % 2], nullptr, 0,
+                           0) == S_FALSE)
+    ;
+
   D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
-  pContext->GetData(m_pQueryDisjoint[m_frameNum % 2 + 1], &tsDisjoint,
+  pContext->GetData(m_pQueryDisjoint[(m_frameNum + 1) % 2], &tsDisjoint,
                     sizeof(D3D11_QUERY_DATA_TIMESTAMP_DISJOINT), 0);
 
   if (tsDisjoint.Disjoint) {
@@ -591,14 +601,14 @@ void SimRenderer::CollectTimestamps() {
   }
 
   // Get all the timestamps
-  UINT tsMarchingBegin, tsMarchingPreproc, tsMarchingMain;
+  UINT64 tsMarchingBegin, tsMarchingPreproc, tsMarchingMain;
 
-  pContext->GetData(m_pQueryMarchingStart[m_frameNum % 2 + 1], &tsMarchingBegin,
-                    sizeof(UINT), 0);
-  pContext->GetData(m_pQueryMarchingPreprocess[m_frameNum % 2 + 1],
-                    &tsMarchingPreproc, sizeof(UINT), 0);
-  pContext->GetData(m_pQueryMarchingMain[m_frameNum % 2 + 1], &tsMarchingMain,
-                    sizeof(UINT), 0);
+  pContext->GetData(m_pQueryMarchingStart[(m_frameNum + 1) % 2],
+                    &tsMarchingBegin, sizeof(UINT64), 0);
+  pContext->GetData(m_pQueryMarchingPreprocess[(m_frameNum + 1) % 2],
+                    &tsMarchingPreproc, sizeof(UINT64), 0);
+  pContext->GetData(m_pQueryMarchingMain[(m_frameNum + 1) % 2], &tsMarchingMain,
+                    sizeof(UINT64), 0);
 
   // Convert to real time
   m_marchingPrep = float(tsMarchingPreproc - tsMarchingBegin) /

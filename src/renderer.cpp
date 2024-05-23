@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "DDS.h"
+#include "Model.h"
 #include "cubemap.h"
 #include "device-resources.h"
 #include "imgui.h"
@@ -23,17 +24,13 @@
 #undef max
 #endif
 
+using std::make_unique;
+
 struct TextureTangentVertex {
   Vector3 pos;
   DirectX::XMFLOAT2 tangent;
   Vector3 norm;
   Vector3 uv;
-};
-
-struct GeomBuffer {
-  DirectX::XMMATRIX m;
-  DirectX::XMMATRIX normalM;
-  Vector4 shine; // x - shininess
 };
 
 static const float CameraRotationSpeed = (float)M_PI * 2.0f;
@@ -105,6 +102,14 @@ bool Renderer::Init(HWND hWnd) {
     auto dxResources = DeviceResources::getInstance();
     ImGui_ImplDX11_Init(dxResources.m_pDevice.Get(),
                         dxResources.m_pDeviceContext.Get());
+  }
+
+  try {
+    m_pMiku = std::make_unique<Miku>();
+    m_pMiku->Init();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
+    exit(1);
   }
 
   if (FAILED(result)) {
@@ -219,10 +224,12 @@ bool Renderer::Update() {
   if (SUCCEEDED(result)) {
     m_sceneBuffer.vp = DirectX::XMMatrixMultiply(v, p);
     m_sceneBuffer.cameraPos = cameraPos;
-    m_sceneBuffer.lights[0].pos = Vector4(-4, 5, 4, 0);
+    m_sceneBuffer.lights[0].pos = Vector4(0, 10, 0, 0);
     m_sceneBuffer.lights[0].color = Vector4(0.7, 0.7, 0.7, 1);
-    m_sceneBuffer.lightCount.x = 1;
-    m_sceneBuffer.ambientColor = Vector4(0.4, 0.4, 0.4, 1);
+    m_sceneBuffer.lights[1].pos = Vector4(-2, 10, 4, 0);
+    m_sceneBuffer.lights[1].color = Vector4(0.7, 0.7, 0.7, 1);
+    m_sceneBuffer.lightCount.x = 2;
+    m_sceneBuffer.ambientColor = Vector4(0.1, 0.1, 0.1, 1);
 
     memcpy(subresource.pData, &m_sceneBuffer, sizeof(SceneBuffer));
 
@@ -277,6 +284,7 @@ bool Renderer::Render() {
     exit(1);
   }
   // m_pWater->Render(m_pSceneBuffer);
+  m_pMiku->Render(m_pSceneBuffer.Get());
   m_pSimulationRenderer->Render(m_pSceneBuffer.Get());
 
   ImGui::Render();

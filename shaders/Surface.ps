@@ -24,6 +24,6 @@ float4 ps(VSOutput pixel) : SV_Target0
     return color;
 #else
     return float4(CalculateColor(color.xyz, normalize(pixel.norm),
-                                 pixel.worldPos.xyz, 10.0f, false), color.w);
+                                 pixel.worldPos.xyz, 0.5f, false), color.w);
 #endif
 }

@@ -59,6 +59,9 @@ float3 ColorWater(in float3 objColor, in float3 objNormal, in float3 pos,
       normal = -normal;
     }
 
+    finalColor +=
+        objColor * max(dot(lightDir, normal), 0) * atten * lights[i].color.xyz;
+
     float3 viewDir = normalize(cameraPos.xyz - pos);
     float3 reflectDir = reflect(-lightDir, normal);
 

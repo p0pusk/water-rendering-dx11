@@ -1,4 +1,4 @@
-#include "/shaders/Light.h"
+#include "shaders/Light.h"
 
 cbuffer GeomBuffer : register(b1)
 {
@@ -23,20 +23,21 @@ struct VSOutput
 
 float4 ps(VSOutput pixel) : SV_Target0
 {
-    float3 color = colorTexture.Sample(colorSampler, pixel.uv).xyz;
-    float3 finalColor = ambientColor * color;
+    float4 color = colorTexture.Sample(colorSampler, pixel.uv);
+    float4 finalColor = ambientColor * color;
 
     float3 normal = float3(0, 0, 0);
+#ifdef NORMAL_MAP
     if (lightCount.y > 0)
     {
         float3 binorm = normalize(cross(pixel.norm, pixel.tang));
         float3 localNorm = normalMapTexture.Sample(colorSampler, pixel.uv).xyz * 2.0 - float3(1.0, 1.0, 1.0);
         normal = localNorm.x * normalize(pixel.tang) + localNorm.y * binorm + localNorm.z * normalize(pixel.norm);
     }
-    else
-    {
+#else
         normal = pixel.norm;
-    }
+#endif
 
-    return float4(CalculateColor(color, normal, pixel.worldPos.xyz, shine.x, false), 1.0);
+    return float4(CalculateColor(finalColor.xyz, normal, pixel.worldPos.xyz, shine.x,
+                                 false), 1.f);
 }

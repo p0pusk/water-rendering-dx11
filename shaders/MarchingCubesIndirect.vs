@@ -23,7 +23,7 @@ VSOutput vs(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID) {
 
   result.pos = mul(vp, float4(pos, 1));
   result.worldPos = pos;
-  result.color = float4(1, 1, 1, 0.02);
+  result.color = float4(0.f, 0.f, 1.f, 0.5f);
   result.norm = triangles[instanceID].normal[vertexID];
 
   return result;

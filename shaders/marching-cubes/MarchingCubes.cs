@@ -48,14 +48,14 @@ Triangulation get_triangulations(in uint x, in uint y, in uint z)
   */
 
     uint idx = 0;
-    idx |= (uint) (voxel_get(x, y, z) > g_c) << 0;
-    idx |= (uint) (voxel_get(x, y, z + 1) > g_c) << 1;
-    idx |= (uint) (voxel_get(x + 1, y, z + 1) > g_c) << 2;
-    idx |= (uint) (voxel_get(x + 1, y, z) > g_c) << 3;
-    idx |= (uint) (voxel_get(x, y + 1, z) > g_c) << 4;
-    idx |= (uint) (voxel_get(x, y + 1, z + 1) > g_c) << 5;
-    idx |= (uint) (voxel_get(x + 1, y + 1, z + 1) > g_c) << 6;
-    idx |= (uint) (voxel_get(x + 1, y + 1, z) > g_c) << 7;
+    idx |= (uint) !(voxel_get(x, y, z) > g_c) << 0;
+    idx |= (uint) !(voxel_get(x, y, z + 1) > g_c) << 1;
+    idx |= (uint) !(voxel_get(x + 1, y, z + 1) > g_c) << 2;
+    idx |= (uint) !(voxel_get(x + 1, y, z) > g_c) << 3;
+    idx |= (uint) !(voxel_get(x, y + 1, z) > g_c) << 4;
+    idx |= (uint) !(voxel_get(x, y + 1, z + 1) > g_c) << 5;
+    idx |= (uint) !(voxel_get(x + 1, y + 1, z + 1) > g_c) << 6;
+    idx |= (uint) !(voxel_get(x + 1, y + 1, z) > g_c) << 7;
 
     return TRIANGULATIONS[idx];
 }

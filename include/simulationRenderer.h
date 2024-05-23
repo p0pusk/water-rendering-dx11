@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <memory>
 
+#include "CommonStates.h"
+#include "Effects.h"
 #include "SimpleMath.h"
 #include "device-resources.h"
 #include "marching-cubes.h"
@@ -78,6 +80,8 @@ private:
 
   std::vector<Vector3> m_vertex;
   std::vector<UINT> m_index;
+  std::unique_ptr<CommonStates> m_states;
+  std::unique_ptr<IEffectFactory> m_fxFactory;
 
   ComPtr<ID3D11Buffer> m_pMarchingVertexBuffer;
   ComPtr<ID3D11Buffer> m_pVertexBuffer;

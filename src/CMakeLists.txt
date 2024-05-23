@@ -8,6 +8,7 @@ set(
   cubemap.cpp
   surface.cpp
   ./ScanCS.cpp
+  ./miku.cpp
   device-resources.cpp
   simulation/marching-cubes.cpp
   simulation/water.cpp

@@ -141,7 +141,7 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     CreateQueries();
   } catch (...) {
     std::cerr << "Failed to create queires!" << std::endl;
-    throw;
+    exit(1);
   }
 
   try {
@@ -158,32 +158,22 @@ void SphGpu::CreateQueries() {
   D3D11_QUERY_DESC desc{};
   desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
   desc.MiscFlags = 0;
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDisjoint[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDisjoint[1]));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDisjoint));
   desc.Query = D3D11_QUERY_TIMESTAMP;
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphStart[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphStart[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphClear[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphClear[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphDensity[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphDensity[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPressure[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPressure[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphForces[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphForces[1]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPosition[0]));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPosition[1]));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphStart));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphClear));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphDensity));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPressure));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphForces));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPosition));
 }
 
 void SphGpu::Update() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-  pContext->Begin(m_pQueryDisjoint[m_frameNum % 2].Get());
-
-  pContext->End(m_pQuerySphStart[m_frameNum % 2].Get());
+  pContext->Begin(m_pQueryDisjoint.Get());
+  pContext->End(m_pQuerySphStart.Get());
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
 
@@ -203,7 +193,7 @@ void SphGpu::Update() {
 
     pContext->CSSetShader(m_pCreateHashCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphClear[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphClear.Get());
     ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
     pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
     ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
@@ -218,7 +208,7 @@ void SphGpu::Update() {
     pContext->CSSetConstantBuffers(0, 1, cb);
     pContext->CSSetShaderResources(0, 1, srvs);
     pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
-    pContext->End(m_pQuerySphPrefix[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphPrefix.Get());
 
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
     pContext->CSSetShader(m_pCreateEntriesCS.Get(), nullptr, 0);
@@ -226,8 +216,8 @@ void SphGpu::Update() {
 
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
     pContext->CSSetShaderResources(0, 1, nsrvs);
-    pContext->End(m_pQuerySphHash[m_frameNum % 2].Get());
   }
+  pContext->End(m_pQuerySphHash.Get());
 
   {
     ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
@@ -239,30 +229,33 @@ void SphGpu::Update() {
 
     pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphDensity[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphDensity.Get());
     pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphPressure[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphPressure.Get());
     pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphForces[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphForces.Get());
     pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphPosition[m_frameNum % 2].Get());
+    pContext->End(m_pQuerySphPosition.Get());
 
     ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
     ID3D11UnorderedAccessView *nuavs[1] = {nullptr};
     pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
     pContext->CSSetShaderResources(0, 2, nsrvs);
-    pContext->End(m_pQueryDisjoint[m_frameNum % 2].Get());
   }
+  pContext->End(m_pQueryDisjoint.Get());
 }
 
 void SphGpu::CollectTimestamps() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+
+  while (pContext->GetData(m_pQueryDisjoint.Get(), nullptr, 0, 0) == S_FALSE)
+    ;
   // Check whether timestamps were disjoint during the last frame
-  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint{};
-  pContext->GetData(m_pQueryDisjoint[(m_frameNum + 1) % 2].Get(), &tsDisjoint,
+  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
+  pContext->GetData(m_pQueryDisjoint.Get(), &tsDisjoint,
                     sizeof(D3D11_QUERY_DATA_TIMESTAMP_DISJOINT), 0);
 
   if (tsDisjoint.Disjoint) {
@@ -270,25 +263,34 @@ void SphGpu::CollectTimestamps() {
   }
 
   // Get all the timestamps
-  UINT64 tsSphStart, tsSphPrefix, tsSphClear, tsSphHash, tsSphDensity,
-      tsSphPressure, tsSphForces, tsSphPositions;
+  UINT64 tsSphStart = 0, tsSphPrefix = 0, tsSphClear = 0, tsSphHash = 0,
+         tsSphDensity = 0, tsSphPressure = 0, tsSphForces = 0,
+         tsSphPositions = 0;
 
-  pContext->GetData(m_pQuerySphStart[(m_frameNum + 1) % 2].Get(), &tsSphStart,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphPrefix[(m_frameNum + 1) % 2].Get(), &tsSphPrefix,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphClear[(m_frameNum + 1) % 2].Get(), &tsSphClear,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphHash[(m_frameNum + 1) % 2].Get(), &tsSphHash,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphDensity[(m_frameNum + 1) % 2].Get(),
-                    &tsSphDensity, sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphPressure[(m_frameNum + 1) % 2].Get(),
-                    &tsSphPressure, sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphForces[(m_frameNum + 1) % 2].Get(), &tsSphForces,
-                    sizeof(UINT64), 0);
-  pContext->GetData(m_pQuerySphPosition[(m_frameNum + 1) % 2].Get(),
-                    &tsSphPositions, sizeof(UINT64), 0);
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphStart.Get(), &tsSphStart, sizeof(UINT64), 0),
+      "Failed in GetData() SphStart");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPrefix.Get(), &tsSphPrefix,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphClear.Get(), &tsSphClear, sizeof(UINT64), 0),
+      "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphHash.Get(), &tsSphHash, sizeof(UINT64), 0),
+      "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphDensity.Get(), &tsSphDensity,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPressure.Get(), &tsSphPressure,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphForces.Get(), &tsSphForces,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPosition.Get(),
+                                      &tsSphPositions, sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
 
   // Convert to real time
   m_sphClearTime =
@@ -312,7 +314,13 @@ void SphGpu::CollectTimestamps() {
 }
 
 void SphGpu::ImGuiRender() {
-  CollectTimestamps();
+  try {
+    CollectTimestamps();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
+    exit(1);
+  }
+
   ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
   ImGui::Text("Particles number: %d", m_num_particles);
 
