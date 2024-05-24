@@ -12,3 +12,12 @@ struct Particle {
   Vector3 velocity;
   UINT hash;
 };
+
+struct DiffuseParticle {
+  Vector3 position;
+  float density;
+  float pressure;
+  Vector3 force;
+  Vector3 velocity;
+  UINT hash;
+};

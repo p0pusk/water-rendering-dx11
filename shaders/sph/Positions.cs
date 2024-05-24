@@ -51,8 +51,8 @@ void CheckBoundary(in uint index)
 
 void ForceBoundary(in uint index) {
     float3 localPos = particles[index].position - worldPos;
-    float padding = 4 * marchingWidth;
-    float boundaryRepulsion = 10000.0f * particles[index].density;
+    float padding = 10 * marchingWidth;
+    float boundaryRepulsion = 1000.0f * particles[index].density;
 
     if (localPos.y < padding)
     {
@@ -97,6 +97,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
 
     particles[DTid.x].velocity += dt.x * particles[DTid.x].force / particles[DTid.x].density;
     particles[DTid.x].position += dt.x * particles[DTid.x].velocity;
+
 
     // boundary condition
 }

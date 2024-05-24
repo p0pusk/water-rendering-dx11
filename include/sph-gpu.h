@@ -48,6 +48,7 @@ private:
 
   const Settings &m_settings;
   UINT m_num_particles;
+  UINT m_diffuseParticelsNum;
 
   SphCB m_sphCB;
   CScanCS m_cScanCS;

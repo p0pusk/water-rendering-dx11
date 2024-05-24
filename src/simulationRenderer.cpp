@@ -523,7 +523,7 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   auto pContext = dxResources.m_pDeviceContext;
   auto pTransDepthState = dxResources.m_pTransDepthState;
   auto pTransBlendState = dxResources.m_pTransBlendState;
-  pContext->OMSetDepthStencilState(m_states->DepthReadReverseZ(), 0);
+  pContext->OMSetDepthStencilState(m_states->DepthReverseZ(), 0);
   pContext->OMSetBlendState(m_states->AlphaBlend(), nullptr, 0xffffffff);
 
   pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

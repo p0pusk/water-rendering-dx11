@@ -229,7 +229,7 @@ bool Renderer::Update() {
     m_sceneBuffer.lights[1].pos = Vector4(-2, 10, 4, 0);
     m_sceneBuffer.lights[1].color = Vector4(0.7, 0.7, 0.7, 1);
     m_sceneBuffer.lightCount.x = 2;
-    m_sceneBuffer.ambientColor = Vector4(0.1, 0.1, 0.1, 1);
+    m_sceneBuffer.ambientColor = Vector4(0.3f, 0.3f, 0.3f, 1);
 
     memcpy(subresource.pData, &m_sceneBuffer, sizeof(SceneBuffer));
 

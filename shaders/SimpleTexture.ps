@@ -15,7 +15,7 @@ SamplerState colorSampler : register(s0);
 struct VSOutput
 {
     float4 pos : SV_Position;
-    float4 worldPos : POSITION;
+    float3 worldPos : POSITION;
     float3 tang : TANGENT;
     float3 norm : NORMAL;
     float2 uv : TEXCOORD;
@@ -24,7 +24,6 @@ struct VSOutput
 float4 ps(VSOutput pixel) : SV_Target0
 {
     float4 color = colorTexture.Sample(colorSampler, pixel.uv);
-    float4 finalColor = ambientColor * color;
 
     float3 normal = float3(0, 0, 0);
 #ifdef NORMAL_MAP
@@ -38,6 +37,5 @@ float4 ps(VSOutput pixel) : SV_Target0
         normal = pixel.norm;
 #endif
 
-    return float4(CalculateColor(finalColor.xyz, normal, pixel.worldPos.xyz, shine.x,
-                                 false), 1.f);
+    return float4(CalculateColor(color.xyz, normal, pixel.worldPos.xyz, shine.x, false), color.w);
 }

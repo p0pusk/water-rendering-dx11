@@ -43,11 +43,11 @@ void Miku::Init() {
 
   try {
     GeomBuffer geomBuffer;
-    geomBuffer.m = XMMatrixScaling(0.01f, 0.01f, 0.01f) *
-                   XMMatrixTranslation(0, 0.1f, 0) *
-                   XMMatrixRotationY(std::acos(-1));
+    geomBuffer.m = XMMatrixScaling(0.02f, 0.02f, 0.02f) *
+                   XMMatrixTranslation(0.0f, 0, 0.0f) *
+                   XMMatrixRotationY(acos(-1));
     geomBuffer.norm = XMMatrixInverse(nullptr, XMMatrixTranspose(geomBuffer.m));
-    geomBuffer.shine = Vector4(0.5f, 0, 0, 0);
+    geomBuffer.shine = Vector4(1.0f, 0, 0, 0);
 
     D3D11_SUBRESOURCE_DATA data;
     data.pSysMem = &geomBuffer;
@@ -82,8 +82,7 @@ void Miku::Render(ID3D11Buffer *pSceneBuffer) {
     pContext->PSSetShaderResources(0, 1, srvs);
     auto samplerState = m_states->LinearWrap();
     pContext->PSSetSamplers(0, 1, &samplerState);
-    auto blendState = m_states->Opaque();
-    pContext->OMSetBlendState(blendState, nullptr, 0xFFFFFFFF);
+    pContext->OMSetBlendState(m_states->Opaque(), nullptr, 0xffffffff);
     pContext->OMSetDepthStencilState(m_states->DepthReverseZ(), 0);
   });
 }

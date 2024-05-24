@@ -1,5 +1,6 @@
 #include "sph-gpu.h"
 
+#include "BufferHelpers.h"
 #include "device-resources.h"
 #include "pch.h"
 #include "utils.h"
@@ -97,6 +98,11 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     // create Hash SRV
     DX::CreateBufferSRV(m_pEntriesBuffer.Get(), m_num_particles,
                         "EntriesBufferSRV", &m_pEntriesBufferSRV);
+  } catch (...) {
+    throw;
+  }
+
+  try {
   } catch (...) {
     throw;
   }

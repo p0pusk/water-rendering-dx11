@@ -28,7 +28,7 @@ VSOutput vs(VSInput vertex)
 
     result.pos = mul(vp, worldPos);
     result.worldPos = worldPos;
-    result.norm = mul(normM, float4(vertex.norm, 0)).xyz;
+    result.norm = normalize(mul(normM, float4(vertex.norm, 0)).xyz);
 
     return result;
 }
