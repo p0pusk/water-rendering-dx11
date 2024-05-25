@@ -111,9 +111,9 @@ void ForceBoundary(in uint index) {
     }
 
 #ifdef DIFFUSE
-  diffuse[index].force += force;
+  diffuse[index].force = force;
 #else
-  particles[index].force += force;
+  particles[index].force = force;
 #endif
 }
 
