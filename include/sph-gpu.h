@@ -19,7 +19,13 @@ struct SphCB {
   float dampingCoeff;
   float marchingCubeWidth;
   UINT hashTableSize;
-  Vector3 dt;
+  UINT diffuseNum;
+  Vector2 dt;
+};
+
+struct SphStateBuffer {
+  Vector3 time;
+  UINT diffuseNum;
 };
 
 class SphGpu {
@@ -35,8 +41,11 @@ public:
 
   ComPtr<ID3D11Buffer> m_pSphCB;
   ComPtr<ID3D11Buffer> m_pSphDataBuffer;
+  ComPtr<ID3D11Buffer> m_pDiffuseBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pSphBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pSphBufferSRV;
+  ComPtr<ID3D11UnorderedAccessView> m_pDiffuseBufferUAV;
+  ComPtr<ID3D11ShaderResourceView> m_pDiffuseBufferSRV;
   ComPtr<ID3D11UnorderedAccessView> m_pHashBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pHashBufferSRV;
   ComPtr<ID3D11UnorderedAccessView> m_pEntriesBufferUAV;
@@ -55,8 +64,11 @@ private:
   ComPtr<ID3D11Buffer> m_pHashBuffer;
   ComPtr<ID3D11Buffer> m_pEntriesBuffer;
   ComPtr<ID3D11Buffer> m_pScanHelperBuffer;
+  ComPtr<ID3D11Buffer> m_pStateBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pScanHelperBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pScanHelperBufferSRV;
+  ComPtr<ID3D11UnorderedAccessView> m_pStateUAV;
+  ComPtr<ID3D11ShaderResourceView> m_pStateSRV;
 
   ComPtr<ID3D11ComputeShader> m_pClearTableCS;
   ComPtr<ID3D11ComputeShader> m_pCreateHashCS;
@@ -66,6 +78,12 @@ private:
   ComPtr<ID3D11ComputeShader> m_pPressureCS;
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
+  ComPtr<ID3D11ComputeShader> m_pSpawnDiffuseCS;
+  ComPtr<ID3D11ComputeShader> m_pDiffuseDensityCS;
+  ComPtr<ID3D11ComputeShader> m_pDiffusePressureCS;
+  ComPtr<ID3D11ComputeShader> m_pDiffuseForcesCS;
+  ComPtr<ID3D11ComputeShader> m_pDiffusePositionsCS;
+  ComPtr<ID3D11ComputeShader> m_pDiffuseSpawnDiffuseCS;
 
   ComPtr<ID3D11Query> m_pQueryDisjoint;
   ComPtr<ID3D11Query> m_pQuerySphStart;

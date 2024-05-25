@@ -10,9 +10,9 @@ cbuffer GeomBuffer : register (b1)
 struct VSInput
 {
     float3 pos : SV_POSITION;
+    float4 color : COLOR;
     float3 norm : NORMAL;
     float4 tang : TANGENT;
-    float4 color : COLOR;
     float2 uv : TEXCOORD0;
 };
 
@@ -20,8 +20,9 @@ struct VSOutput
 {
     float4 pos : SV_Position;
     float3 worldPos : POSITION;
-    float3 tang : TANGENT;
+    float4 color : COLOR;
     float3 norm : NORMAL;
+    float3 tang : TANGENT;
     float2 uv : TEXCOORD;
 };
 
@@ -36,6 +37,7 @@ VSOutput vs(VSInput vertex)
     result.uv = float2(vertex.uv.x, 1 - vertex.uv.y);
     result.tang = normalize(mul(norm, vertex.tang).xyz);
     result.norm = normalize(mul(norm, float4(vertex.norm, 0)));
+    result.color = vertex.color;
 
     return result;
 }

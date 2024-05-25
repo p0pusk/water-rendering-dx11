@@ -1,29 +1,36 @@
 #include "shaders/Light.h"
 
-TextureCube colorTexture : register (t0);
-
-SamplerState colorSampler : register(s0);
-
 struct VSOutput
 {
     float4 pos : SV_Position;
-    float4 worldPos : POSITION;
+    float3 worldPos : POSITION;
+    float4 color : COLOR;
     float3 norm : NORMAL;
+    float3 tang : TANGENT;
+    float2 uv : TEXCOORD;
 };
 
 cbuffer GeomBuffer : register (b1)
 {
     float4x4 model;
     float4x4 norm;
+    float4 shine;
     float4 color;
 };
 
 float4 ps(VSOutput pixel) : SV_Target0
 {
-#ifdef NO_LIGHTS
-    return color;
+  float4 finalColor = float4(0, 0, 0, 0);
+#ifdef VERTEX_COLOR
+  finalColor = pixel.color;
 #else
-    return float4(CalculateColor(color.xyz, normalize(pixel.norm),
-                                 pixel.worldPos.xyz, 1.0f, false), color.w);
+  finalColor = color;
+#endif
+
+#ifdef NO_LIGHTS
+    return finalColor;
+#else
+    return float4(CalculateColor(finalColor.xyz, normalize(pixel.norm),
+                                 pixel.worldPos.xyz, shine.x, false), finalColor.w);
 #endif
 }

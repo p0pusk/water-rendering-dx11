@@ -8,7 +8,8 @@ cbuffer SphCB : register(b0) {
   float dampingCoeff;
   float marchingWidth;
   uint g_tableSize;
-  float3 dt;
+  uint diffuseParticlesNum;
+  float2 dt;
 };
 
 struct Particle {
@@ -20,15 +21,27 @@ struct Particle {
   uint hash;
 };
 
+struct DiffuseParticle {
+  float3 position;
+  float density;
+  float pressure;
+  float3 force;
+  float3 velocity;
+  float lifetime;
+};
+
 struct SurfaceBuffer {
   uint sum;
   uint usedCells;
 };
 
+struct State {
+  float3 time;
+  uint curDiffuseNum;
+};
+
 static const uint BLOCK_SIZE = 1024;
 static const uint GROUPS_NUM = ceil(particlesNum / (float)BLOCK_SIZE);
-
-static const uint NO_PARTICLE = 0xFFFFFFFF;
 
 static const float PI = 3.14159265f;
 static const float poly6 = 315.0f / (64.0f * PI * pow(h, 9));

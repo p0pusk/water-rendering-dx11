@@ -3,6 +3,7 @@
 #include "utils.h"
 
 HRESULT Surface::Init(Vector3 pos) {
+
   static const D3D11_INPUT_ELEMENT_DESC InputDesc[] = {
       {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
        D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -18,6 +19,7 @@ HRESULT Surface::Init(Vector3 pos) {
 
   HRESULT result = S_OK;
   auto pDevice = DeviceResources::getInstance().m_pDevice;
+  m_states = std::make_unique<DirectX::CommonStates>(pDevice.Get());
 
   // Create vertex buffer
   if (SUCCEEDED(result)) {
@@ -105,6 +107,7 @@ HRESULT Surface::Init(Vector3 pos) {
     m = DirectX::XMMatrixTranspose(m);
     geomBuffer.norm = m;
     geomBuffer.color = Vector4(0.75f, 0.75f, 0.75f, 1.f);
+    geomBuffer.shine = Vector4(1.f, 0, 0, 0);
 
     D3D11_SUBRESOURCE_DATA data;
     data.pSysMem = &geomBuffer;
@@ -133,7 +136,7 @@ void Surface::Render(ID3D11Buffer *pSceneBuffer) {
   ID3D11ShaderResourceView *resources[] = {m_pCubemapView.Get()};
   pContext->PSSetShaderResources(0, 1, resources);
 
-  pContext->OMSetDepthStencilState(pDepthState.Get(), 0);
+  pContext->OMSetDepthStencilState(m_states->DepthReverseZ(), 0);
 
   auto pOpaqueBlendState = dxResources.m_pOpaqueBlendState;
   pContext->OMSetBlendState(pOpaqueBlendState.Get(), nullptr, 0xFFFFFFFF);

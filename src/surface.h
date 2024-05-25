@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CommonStates.h"
 #include "device-resources.h"
 #include "pch.h"
 
@@ -14,6 +15,7 @@ class Surface {
   struct GeomBuffer {
     DirectX::XMMATRIX m;
     DirectX::XMMATRIX norm;
+    Vector4 shine;
     Vector4 color;
   };
 
@@ -32,4 +34,5 @@ private:
   ComPtr<ID3D11VertexShader> m_pVertexShader;
   ComPtr<ID3D11PixelShader> m_pPixelShader;
   ComPtr<ID3D11ShaderResourceView> m_pCubemapView;
+  std::unique_ptr<DirectX::CommonStates> m_states;
 };

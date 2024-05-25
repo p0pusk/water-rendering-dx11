@@ -23,7 +23,7 @@ RWStructuredBuffer<float> voxel_grid : register(u0);
 AppendStructuredBuffer<Triangle> triangles : register(u1);
 RWStructuredBuffer<SurfaceBuffer> surfaceBuffer : register(u2);
 
-static const float g_c = 0.25f;
+static const float g_c = 0.25;
 
 float voxel_get(in uint x, in uint y, in uint z)
 {

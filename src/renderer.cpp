@@ -12,6 +12,7 @@
 #include "imgui_impl_win32.h"
 #include "pch.h"
 #include "simulationRenderer.h"
+#include "terrain.h"
 #include "utils.h"
 
 #define _USE_MATH_DEFINES
@@ -107,6 +108,14 @@ bool Renderer::Init(HWND hWnd) {
   try {
     m_pMiku = std::make_unique<Miku>();
     m_pMiku->Init();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
+    exit(1);
+  }
+
+  try {
+    m_pTerrain = std::make_unique<Terrain>();
+    m_pTerrain->Init();
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     exit(1);
@@ -284,6 +293,7 @@ bool Renderer::Render() {
     exit(1);
   }
   // m_pWater->Render(m_pSceneBuffer);
+  m_pTerrain->Render(m_pSceneBuffer.Get());
   m_pMiku->Render(m_pSceneBuffer.Get());
   m_pSimulationRenderer->Render(m_pSceneBuffer.Get());
 

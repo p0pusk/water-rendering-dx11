@@ -138,5 +138,6 @@ private:
   void CollectTimestamps();
 
   void RenderMarching(ID3D11Buffer *pSceneBuffer = nullptr);
-  void RenderSpheres(ID3D11Buffer *pSceneBuffer = nullptr);
+  void RenderSpheres(ID3D11ShaderResourceView *srv, UINT num,
+                     ID3D11Buffer *pSceneBuffer = nullptr);
 };

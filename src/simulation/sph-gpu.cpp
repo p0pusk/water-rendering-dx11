@@ -5,6 +5,7 @@
 #include "pch.h"
 #include "utils.h"
 #include <exception>
+#include <format>
 #include <iostream>
 
 void SphGpu::Init(const std::vector<Particle> &particles) {
@@ -21,6 +22,7 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     m_sphCB.dampingCoeff = m_settings.dampingCoeff;
     m_sphCB.marchingCubeWidth = m_settings.marchingCubeWidth;
     m_sphCB.hashTableSize = m_settings.TABLE_SIZE;
+    m_sphCB.diffuseNum = m_settings.diffuseParticlesNum;
     m_sphCB.dt.x = m_settings.dt;
 
     D3D11_SUBRESOURCE_DATA data = {};
@@ -47,6 +49,33 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     // create SPh SRV
     DX::CreateBufferSRV(m_pSphDataBuffer.Get(), m_num_particles,
                         "SphDataBufferSRV", &m_pSphBufferSRV);
+  } catch (...) {
+    throw;
+  }
+
+  try {
+    DX::CreateStructuredBuffer<SphStateBuffer>(
+        1, D3D11_USAGE_DEFAULT, 0, nullptr, "SphStateBuffer", &m_pStateBuffer);
+
+    DX::CreateBufferUAV(m_pStateBuffer.Get(), 1, "SphStateBufferUAV",
+                        &m_pStateUAV);
+
+    DX::CreateBufferSRV(m_pStateBuffer.Get(), 1, "SphDataBufferSRV",
+                        &m_pStateSRV);
+  } catch (...) {
+    throw;
+  }
+
+  try {
+    DX::CreateStructuredBuffer<Particle>(
+        m_settings.diffuseParticlesNum, D3D11_USAGE_DEFAULT, 0, nullptr,
+        "DiffuseParticlesBuffer", &m_pDiffuseBuffer);
+
+    DX::CreateBufferUAV(m_pDiffuseBuffer.Get(), m_settings.diffuseParticlesNum,
+                        "SphDataBufferUAV", &m_pDiffuseBufferUAV);
+
+    DX::CreateBufferSRV(m_pDiffuseBuffer.Get(), m_settings.diffuseParticlesNum,
+                        "SphDataBufferSRV", &m_pDiffuseBufferSRV);
   } catch (...) {
     throw;
   }
@@ -139,6 +168,27 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     DX::CompileAndCreateShader(
         L"shaders/sph/Positions.cs",
         (ID3D11DeviceChild **)m_pPositionsCS.GetAddressOf());
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/SpawnDiffuse.cs",
+        (ID3D11DeviceChild **)m_pSpawnDiffuseCS.GetAddressOf());
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/Density.cs",
+        (ID3D11DeviceChild **)m_pDiffuseDensityCS.GetAddressOf(), {"DIFFUSE"});
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/Pressure.cs",
+        (ID3D11DeviceChild **)m_pDiffusePressureCS.GetAddressOf(), {"DIFFUSE"});
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/Forces.cs",
+        (ID3D11DeviceChild **)m_pDiffuseForcesCS.GetAddressOf(), {"DIFFUSE"});
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/Positions.cs",
+        (ID3D11DeviceChild **)m_pDiffusePositionsCS.GetAddressOf(),
+        {"DIFFUSE"});
   } catch (...) {
     throw;
   }
@@ -228,10 +278,11 @@ void SphGpu::Update() {
   {
     ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
                                          m_pEntriesBufferSRV.Get()};
-    ID3D11UnorderedAccessView *uavs[1] = {m_pSphBufferUAV.Get()};
+    ID3D11UnorderedAccessView *uavs[3] = {
+        m_pSphBufferUAV.Get(), m_pDiffuseBufferUAV.Get(), m_pStateUAV.Get()};
 
     pContext->CSSetShaderResources(0, 2, srvs);
-    pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+    pContext->CSSetUnorderedAccessViews(0, 3, uavs, nullptr);
 
     pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
@@ -247,10 +298,46 @@ void SphGpu::Update() {
     pContext->End(m_pQuerySphPosition.Get());
 
     ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
-    ID3D11UnorderedAccessView *nuavs[1] = {nullptr};
-    pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
+    ID3D11UnorderedAccessView *nuavs[3] = {nullptr, nullptr, nullptr};
     pContext->CSSetShaderResources(0, 2, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 3, nuavs, nullptr);
   }
+
+  // {
+  //   ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
+  //   ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV.Get(),
+  //                                         m_pStateUAV.Get()};
+  //
+  //   pContext->CSSetShaderResources(0, 1, srvs);
+  //   pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+  //
+  //   pContext->CSSetShader(m_pSpawnDiffuseCS.Get(), nullptr, 0);
+  //   pContext->Dispatch(groupNumber, 1, 1);
+  // }
+  //
+  // {
+  //   UINT num = DivUp(m_settings.diffuseParticlesNum, m_settings.blockSize);
+  //   ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
+  //                                        m_pEntriesBufferSRV.Get()};
+  //   ID3D11UnorderedAccessView *uavs[3] = {
+  //       m_pSphBufferUAV.Get(), m_pDiffuseBufferUAV.Get(), m_pStateUAV.Get()};
+  //
+  //   pContext->CSSetShaderResources(0, 2, srvs);
+  //   pContext->CSSetUnorderedAccessViews(0, 3, uavs, nullptr);
+  //
+  //   pContext->CSSetShader(m_pDiffuseDensityCS.Get(), nullptr, 0);
+  //   pContext->CSSetShader(m_pDiffusePressureCS.Get(), nullptr, 0);
+  //   pContext->Dispatch(num, 1, 1);
+  //   pContext->CSSetShader(m_pDiffuseForcesCS.Get(), nullptr, 0);
+  //   pContext->Dispatch(num, 1, 1);
+  //   pContext->CSSetShader(m_pDiffusePositionsCS.Get(), nullptr, 0);
+  //   pContext->Dispatch(num, 1, 1);
+  //
+  //   ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
+  //   ID3D11UnorderedAccessView *nuavs[3] = {nullptr, nullptr, nullptr};
+  //   pContext->CSSetShaderResources(0, 2, nsrvs);
+  //   pContext->CSSetUnorderedAccessViews(0, 3, nuavs, nullptr);
+  // }
   pContext->End(m_pQueryDisjoint.Get());
 }
 

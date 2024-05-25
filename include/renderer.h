@@ -15,6 +15,7 @@
 #include "miku.h"
 #include "simulationRenderer.h"
 #include "surface.h"
+#include "terrain.h"
 #include "water.h"
 
 class Renderer {
@@ -78,6 +79,7 @@ private:
   std::unique_ptr<SimRenderer> m_pSimulationRenderer;
   std::unique_ptr<CubeMap> m_pCubeMap;
   std::unique_ptr<Miku> m_pMiku;
+  std::unique_ptr<Terrain> m_pTerrain;
 
   SceneBuffer m_sceneBuffer;
   ComPtr<ID3D11Buffer> m_pSceneBuffer;

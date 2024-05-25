@@ -19,5 +19,5 @@ struct DiffuseParticle {
   float pressure;
   Vector3 force;
   Vector3 velocity;
-  UINT hash;
+  float lifetime;
 };

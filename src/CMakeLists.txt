@@ -4,6 +4,7 @@ set(
   utils.cpp
   ../include/utils.h
   renderer.cpp
+  ./terrain.cpp
   DDS.cpp
   cubemap.cpp
   surface.cpp

@@ -16,7 +16,6 @@ struct GeomBuffer {
 class Miku {
 public:
   void Init();
-  void Update();
   void Render(ID3D11Buffer *m_pSceneBuffer);
 
   ~Miku() {

@@ -5,6 +5,7 @@ cbuffer GeomBuffer : register (b1)
     float4x4 model;
     float4x4 normM;
     float4 shine; // x - shininess
+    float4 color;
 };
 
 struct VSInput
@@ -17,6 +18,7 @@ struct VSOutput
 {
     float4 pos : SV_Position;
     float4 worldPos : POSITION;
+    float4 color : COLOR;
     float3 norm : NORMAL;
 };
 
@@ -29,6 +31,7 @@ VSOutput vs(VSInput vertex)
     result.pos = mul(vp, worldPos);
     result.worldPos = worldPos;
     result.norm = normalize(mul(normM, float4(vertex.norm, 0)).xyz);
+    result.color = color;
 
     return result;
 }

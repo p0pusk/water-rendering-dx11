@@ -20,11 +20,12 @@ HRESULT CompileAndCreateShader(const std::wstring &path,
 template <typename T>
 HRESULT CreateConstantBuffer(ID3D11Buffer **ppCB, UINT cpuFlags,
                              D3D11_SUBRESOURCE_DATA *data,
-                             const std::string &name) {
+                             const std::string &name,
+                             D3D11_USAGE usage = D3D11_USAGE_DEFAULT) {
   HRESULT result = S_OK;
   D3D11_BUFFER_DESC desc = {};
   desc.ByteWidth = sizeof(T);
-  desc.Usage = D3D11_USAGE_DEFAULT;
+  desc.Usage = usage;
   desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
   desc.CPUAccessFlags = cpuFlags;
   desc.MiscFlags = 0;

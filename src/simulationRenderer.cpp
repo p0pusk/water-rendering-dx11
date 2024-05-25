@@ -509,7 +509,8 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   if (m_settings.marching) {
     RenderMarching(pSceneBuffer);
   } else {
-    RenderSpheres(pSceneBuffer);
+    RenderSpheres(m_sphGpuAlgo.m_pSphBufferSRV.Get(), m_num_particles,
+                  pSceneBuffer);
   }
   m_sphGpuAlgo.ImGuiRender();
   ImGuiRender();
@@ -554,7 +555,8 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   }
 }
 
-void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {
+void SimRenderer::RenderSpheres(ID3D11ShaderResourceView *srv, UINT num,
+                                ID3D11Buffer *pSceneBuffer) {
   auto dxResources = DeviceResources::getInstance();
   auto pContext = dxResources.m_pDeviceContext;
   pContext->OMSetDepthStencilState(dxResources.m_pDepthState.Get(), 0);
@@ -575,14 +577,13 @@ void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {
 
   ID3D11Buffer *cbuffers[1] = {pSceneBuffer};
   pContext->VSSetConstantBuffers(0, 1, cbuffers);
-  ID3D11ShaderResourceView *srvs[1] = {m_sphGpuAlgo.m_pSphBufferSRV.Get()};
+  ID3D11ShaderResourceView *srvs[1] = {srv};
   pContext->VSSetShaderResources(0, 1, srvs);
 
   cbuffers[0] = m_sphGpuAlgo.m_pSphCB.Get();
   pContext->PSSetShaderResources(0, 1, srvs);
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
-  pContext->DrawIndexedInstanced(m_sphereIndexCount, m_particles.size(), 0, 0,
-                                 0);
+  pContext->DrawIndexedInstanced(m_sphereIndexCount, num, 0, 0, 0);
 }
 
 void SimRenderer::CollectTimestamps() {
