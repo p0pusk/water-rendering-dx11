@@ -113,9 +113,9 @@ Vertex get_point(in uint edge_index, in uint3 pos)
     uint3 p2 = POINTS_TABLE[point_indecies.data[1]];
 
     float3 worldP1 =
-        (p1 + pos - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
+        (p1 + pos + float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
     float3 worldP2 =
-        (p2 + pos - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
+        (p2 + pos + float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
 
     uint3 cell1 = p1 + pos;
     uint index1 = cell1.x + cell1.y * MC_DIMENSIONS.x + cell1.z * MC_DIMENSIONS.x * MC_DIMENSIONS.y;

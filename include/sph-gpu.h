@@ -96,6 +96,7 @@ private:
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
   ComPtr<ID3D11ComputeShader> m_pSpawnDiffuseCS;
+  ComPtr<ID3D11ComputeShader> m_pAdvectDiffuseCS;
   ComPtr<ID3D11ComputeShader> m_pPotentialsCS;
   ComPtr<ID3D11ComputeShader> m_pBitonicSortCS;
   ComPtr<ID3D11ComputeShader> m_pTransposeCS;

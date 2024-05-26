@@ -15,7 +15,7 @@ void count(in uint index)
     return;
   }
 
-  float3 globalPos = (cell - float3(0.5f, 0.5f, 0.5f))* marchingWidth + worldPos;
+  float3 globalPos = (cell + float3(0.5f, 0.5f, 0.5f))* marchingWidth + worldPos;
   uint key, idx, startIdx, entriesNum;
   uint count = 0;
   float d = 0;

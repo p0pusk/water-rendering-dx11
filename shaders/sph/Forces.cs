@@ -53,7 +53,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
     }
   }
 
-  particles[DTid.x].normal = normalize(colorFieldGrad);
+  particles[DTid.x].normal = -normalize(colorFieldGrad);
 
   float colorFieldGradMagnitude = length(colorFieldGrad);
   if (colorFieldGradMagnitude > 1e-5f) {

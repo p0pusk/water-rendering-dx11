@@ -12,6 +12,7 @@ struct Particle {
   Vector3 velocity;
   UINT hash;
   Vector3 normal;
+  Vector3 externalForces;
 };
 
 struct Potential {
@@ -25,5 +26,6 @@ struct DiffuseParticle {
   Vector3 velocity;
   // 0 - spray, 1 - foam, 2 - bubbles
   UINT type;
+  UINT origin;
   float lifetime;
 };

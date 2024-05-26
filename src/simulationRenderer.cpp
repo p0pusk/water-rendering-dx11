@@ -513,10 +513,10 @@ void SimRenderer::Update(float dt) {
 void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   ImGui::Begin("Simulation");
   if (m_settings.marching) {
-    RenderMarching(pSceneBuffer);
     if (m_settings.diffuseEnabled) {
       RenderDiffuse(pSceneBuffer);
     }
+    RenderMarching(pSceneBuffer);
   } else {
     RenderSpheres(pSceneBuffer);
   }
@@ -566,7 +566,7 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
 void SimRenderer::RenderDiffuse(ID3D11Buffer *pSceneBuffer) {
   auto dxResources = DeviceResources::getInstance();
   auto pContext = dxResources.m_pDeviceContext;
-  pContext->OMSetDepthStencilState(m_states->DepthNone(), 0);
+  pContext->OMSetDepthStencilState(m_states->DepthReverseZ(), 0);
   pContext->OMSetBlendState(m_states->AlphaBlend(), nullptr, 0xffffffff);
 
   pContext->IASetIndexBuffer(m_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);

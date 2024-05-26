@@ -95,6 +95,7 @@ void ForceBoundary(in uint index) {
     }
 
     particles[index].force = force;
+    particles[index].externalForces = force;
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]
@@ -103,7 +104,6 @@ void cs(uint3 DTid : SV_DispatchThreadID)
   if (DTid.x >= particlesNum) return;
   if (DTid.x == 0) {
     state[0].time += dt;
-    state[0].curDiffuseNum = 0;
   }
 
     ForceBoundary(DTid.x);

@@ -8,6 +8,7 @@ struct Particle {
   float3 velocity;
   uint hash;
   float3 normal;
+  float3 externalForces;
 };
 
 

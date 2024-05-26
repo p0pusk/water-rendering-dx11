@@ -222,6 +222,10 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     DX::CompileAndCreateShader(
         L"shaders/sph/SpawnDiffuse.cs",
         (ID3D11DeviceChild **)m_pSpawnDiffuseCS.GetAddressOf());
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/AdvectDiffuse.cs",
+        (ID3D11DeviceChild **)m_pAdvectDiffuseCS.GetAddressOf());
   } catch (...) {
     throw;
   }
@@ -265,6 +269,8 @@ void SphGpu::Update() {
   pContext->End(m_pQuerySphStart.Get());
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
+  ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
+  ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
 
   {
     ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
@@ -320,54 +326,70 @@ void SphGpu::Update() {
     pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphDensity.Get());
+
     pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphPressure.Get());
+
     ID3D11UnorderedAccessView *uavsForce[1] = {m_pPotentialsUAV.Get()};
     pContext->CSSetUnorderedAccessViews(1, 1, uavsForce, nullptr);
     pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphForces.Get());
+
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
     pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphPosition.Get());
 
-    if (m_settings.diffuseEnabled) {
-      ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
-      ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
-      pContext->CSSetShaderResources(0, 2, nsrvs);
-      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+    pContext->CSSetShaderResources(0, 2, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+  }
 
-      ID3D11ShaderResourceView *srvsPotentials[3] = {m_pHashBufferSRV.Get(),
-                                                     m_pEntriesBufferSRV.Get(),
-                                                     m_pSphBufferSRV.Get()};
-      ID3D11UnorderedAccessView *uavsPotentials[1] = {m_pPotentialsUAV.Get()};
-      pContext->CSSetUnorderedAccessViews(0, 1, uavsPotentials, nullptr);
-      pContext->CSSetShaderResources(0, 3, srvsPotentials);
+  if (m_settings.diffuseEnabled) {
+    {
+      ID3D11ShaderResourceView *srvs[3] = {m_pHashBufferSRV.Get(),
+                                           m_pEntriesBufferSRV.Get(),
+                                           m_pSphBufferSRV.Get()};
+      ID3D11UnorderedAccessView *uavs[1] = {m_pPotentialsUAV.Get()};
+
+      pContext->CSSetShaderResources(0, 3, srvs);
+      pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
       pContext->CSSetShader(m_pPotentialsCS.Get(), nullptr, 0);
       pContext->Dispatch(groupNumber, 1, 1);
 
-      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+      pContext->CSSetShaderResources(0, 3, nsrvs);
+      pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
+    }
 
-      ID3D11ShaderResourceView *srvsSpawn[2] = {m_pSphBufferSRV.Get(),
-                                                m_pPotentialsSRV.Get()};
-      ID3D11UnorderedAccessView *uavsSpawn[2] = {m_pDiffuseBufferUAV1.Get(),
-                                                 m_pStateUAV.Get()};
-      pContext->CSSetUnorderedAccessViews(0, 2, uavsSpawn, nullptr);
-      pContext->CSSetShaderResources(0, 2, srvsSpawn);
+    {
+      ID3D11ShaderResourceView *srvs[2] = {m_pSphBufferSRV.Get(),
+                                           m_pPotentialsSRV.Get()};
+      ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
+                                            m_pStateUAV.Get()};
+      pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+      pContext->CSSetShaderResources(0, 2, srvs);
       pContext->CSSetShader(m_pSpawnDiffuseCS.Get(), nullptr, 0);
       pContext->Dispatch(groupNumber, 1, 1);
 
       pContext->CSSetShaderResources(0, 2, nsrvs);
       pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
-      DiffuseSort();
     }
 
-    ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
-    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
-    pContext->CSSetShaderResources(0, 3, nsrvs);
-    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+    {
+      ID3D11ShaderResourceView *srvsAdvect[3] = {m_pHashBufferSRV.Get(),
+                                                 m_pEntriesBufferSRV.Get(),
+                                                 m_pSphBufferSRV.Get()};
+      ID3D11UnorderedAccessView *uavsAdvect[2] = {m_pDiffuseBufferUAV1.Get(),
+                                                  m_pStateUAV.Get()};
+      pContext->CSSetShader(m_pAdvectDiffuseCS.Get(), nullptr, 0);
+      pContext->CSSetUnorderedAccessViews(0, 2, uavsAdvect, nullptr);
+      pContext->CSSetShaderResources(0, 3, srvsAdvect);
+      pContext->Dispatch(m_settings.diffuseNum / m_settings.blockSize, 1, 1);
+
+      pContext->CSSetShaderResources(0, 3, nsrvs);
+      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+    }
   }
 
   pContext->End(m_pQueryDisjoint.Get());

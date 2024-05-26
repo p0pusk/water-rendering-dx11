@@ -25,6 +25,7 @@ struct Particle {
   float3 velocity;
   uint hash;
   float3 normal;
+  float3 externalForces;
 };
 
 struct Potential {
@@ -38,6 +39,7 @@ struct DiffuseParticle {
   float3 velocity;
   // 0 - spray, 1 - foam, 2 - bubbles
   uint type;
+  uint origin;
   float lifetime;
 };
 
@@ -71,6 +73,20 @@ float poly6Lap(float r, float h) {
   float c = 945.0f / (8.0f * PI * pow(h, 9.0f));
   float r2 = r * r;
   return c * (h2 - r2) * (r2 - 3.f / 4.f * (h2 - r2));
+}
+
+float CubicKernel(float distance, float smoothingLength) {
+  float q = distance / smoothingLength;
+  float sigma = 1.0 / (3.14159265359 *
+                       pow(smoothingLength, 3)); // Normalization factor for 3D
+  if (q >= 0.0 && q < 1.0) {
+    return sigma * (1.0 - (3.0 / 2.0) * q * q + (3.0 / 4.0) * q * q * q);
+  } else if (q >= 1.0 && q < 2.0) {
+    float factor = 2.0 - q;
+    return sigma * (1.0 / 4.0) * factor * factor * factor;
+  } else {
+    return 0.0;
+  }
 }
 
 // Wendland C2 kernel function

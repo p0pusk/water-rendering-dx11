@@ -19,7 +19,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
 
     voxel_grid[DTid.x] = 0.f;
 
-    float3 globalPos = ((float3)cell - float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
+    float3 globalPos = ((float3)cell + float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
     uint key, idx, startIdx, entriesNum;
     uint sum = 0;
     float d = 0;

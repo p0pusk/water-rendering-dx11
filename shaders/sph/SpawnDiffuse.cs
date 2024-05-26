@@ -56,7 +56,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
   }
 
   uint kTA = 5;
-  uint kWC = 10;
+  uint kWC = 20;
   int toSpawn = potentials[DTid.x].energy * (kTA *
     potentials[DTid.x].trappedAir + kWC * potentials[DTid.x].waveCrest);
   int index = diffuseParticlesNum - state[0].curDiffuseNum;
@@ -71,7 +71,8 @@ void cs(uint3 DTid : SV_DispatchThreadID)
       + r * sin(theta) * basis.v2 + dist * normalize(velocity);
     diffuse[index].velocity = particles[DTid.x].position + r * cos(theta) * basis.v1
       + r * sin(theta) * basis.v2 + velocity;
-    uint neighbours = particles[DTid.x].density / mass / W(h/2, h);
+
     diffuse[index].lifetime = 1.f;
+    diffuse[index].origin = DTid.x;
   }
 }
