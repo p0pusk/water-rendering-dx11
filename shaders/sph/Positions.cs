@@ -3,19 +3,13 @@
 StructuredBuffer<uint> hash : register(t0);
 StructuredBuffer<uint> entries : register(t1);
 RWStructuredBuffer<Particle> particles : register(u0);
-RWStructuredBuffer<DiffuseParticle> diffuse : register(u1);
-RWStructuredBuffer<State> state : register(u2);
+RWStructuredBuffer<State> state : register(u1);
 
 void CheckBoundary(in uint index)
 {
     float padding = 4 * marchingWidth;
-#ifdef DIFFUSE
-    float3 localPos = diffuse[index].position - worldPos;
-    float3 velocity = diffuse[index].velocity;
-#else
     float3 localPos = particles[index].position - worldPos;
     float3 velocity = particles[index].velocity;
-#endif
 
     if (localPos.y < padding)
     {
@@ -53,32 +47,22 @@ void CheckBoundary(in uint index)
         velocity.z *= -dampingCoeff;
     }
 
-#ifdef DIFFUSE
-    diffuse[index].velocity = velocity;
-    diffuse[index].position = localPos + worldPos;
-#else
     particles[index].velocity = velocity;
     particles[index].position = localPos + worldPos;
-#endif
 }
 
 
-static const float period = 2.f;
+static const float period = 5.f;
 static const float delay = 2.f;
 
 void ForceBoundary(in uint index) {
     float padding = 10 * marchingWidth;
-    float boundaryRepulsion = 100 * 100000;
+    float boundaryRepulsion = 100 * 20000;
     float movingPadding = boundaryLen.x * 0.25 * 0.5 * (-cos(2 * PI *
-                                                             max(state[0].time.x - delay, 0) / period ) + 1);
+                                                             max(state[0].time - delay, 0) / period ) + 1);
 
-#ifdef DIFFUSE
-  float3 force = diffuse[index].force;
-  float3 localPos = diffuse[index].position - worldPos;
-#else
-  float3 force = particles[index].force;
-  float3 localPos = particles[index].position - worldPos;
-#endif
+    float3 force = particles[index].force;
+    float3 localPos = particles[index].position - worldPos;
 
     if (localPos.y < padding)
     {
@@ -110,36 +94,20 @@ void ForceBoundary(in uint index) {
         force.z -= boundaryRepulsion * (localPos.z + padding - boundaryLen.z);
     }
 
-#ifdef DIFFUSE
-  diffuse[index].force = force;
-#else
-  particles[index].force = force;
-#endif
+    particles[index].force = force;
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]
 void cs(uint3 DTid : SV_DispatchThreadID)
 {
-#ifdef DIFFUSE
-  if (DTid.x >= diffuseParticlesNum) return;
-#else
   if (DTid.x >= particlesNum) return;
   if (DTid.x == 0) {
-    state[0].time.x += dt.x;
+    state[0].time += dt;
+    state[0].curDiffuseNum = 0;
   }
-#endif
 
     ForceBoundary(DTid.x);
 
-#ifdef DIFFUSE
-    diffuse[DTid.x].lifetime -= dt.x;
-    if (diffuse[DTid.x].lifetime <= 0) {
-      InterlockedAdd(state[0].curDiffuseNum, -1);
-    }
-    diffuse[DTid.x].velocity += dt.x * diffuse[DTid.x].force / diffuse[DTid.x].density;
-    diffuse[DTid.x].position += dt.x * diffuse[DTid.x].velocity;
-#else
-    particles[DTid.x].velocity += dt.x * particles[DTid.x].force / particles[DTid.x].density;
-    particles[DTid.x].position += dt.x * particles[DTid.x].velocity;
-#endif
+    particles[DTid.x].velocity += dt * particles[DTid.x].force / particles[DTid.x].density;
+    particles[DTid.x].position += dt * particles[DTid.x].velocity;
 }

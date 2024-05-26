@@ -1,17 +1,15 @@
 #include "shaders/SceneCB.h"
 
-struct Particle {
+struct DiffuseParticle {
   float3 position;
-  float density;
-  float pressure;
-  float3 force;
   float3 velocity;
-  uint hash;
-  float3 normal;
+  // 0 - spray, 1 - foam, 2 - bubbles
+  uint type;
+  float lifetime;
 };
 
 
-StructuredBuffer<Particle> particles : register(t0);
+StructuredBuffer<DiffuseParticle> particles : register(t0);
 
 struct VSInput
 {
@@ -32,11 +30,7 @@ VSOutput vs(VSInput vertex)
 
     result.pos = mul(vp, float4(particles[vertex.instanceID].position + vertex.pos, 1));
     result.worldPos = particles[vertex.instanceID].position + vertex.pos;
-
-    float min = 30.f;
-    float max = 3000.f;
-    float t = smoothstep(min, max, particles[vertex.instanceID].density);
-    result.color = lerp(float4(0, 0.9, 1, 1), float4(0, 0, 1, 1), t);
+    result.color = float4(1, 1, 1, 1);
 
     return result;
 }

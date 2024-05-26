@@ -3,11 +3,15 @@
 #include <memory>
 
 #include "ScanCS.h"
+#include "SimpleMath.h"
 #include "device-resources.h"
 #include "imgui.h"
 #include "particle.h"
 #include "pch.h"
 #include "settings.h"
+
+const UINT BITONIC_BLOCK_SIZE = 1024;
+const UINT TRANSPOSE_BLOCK_SIZE = 16;
 
 struct SphCB {
   Vector3 worldOffset;
@@ -20,11 +24,16 @@ struct SphCB {
   float marchingCubeWidth;
   UINT hashTableSize;
   UINT diffuseNum;
-  Vector2 dt;
+  float dt;
+  float diffuseEnabled;
+  Vector2 trappedAirThreshold;
+  Vector2 wavecrestThreshold;
+  Vector2 energyThreshold;
+  Vector2 padding;
 };
 
 struct SphStateBuffer {
-  Vector3 time;
+  float time;
   UINT diffuseNum;
 };
 
@@ -41,11 +50,15 @@ public:
 
   ComPtr<ID3D11Buffer> m_pSphCB;
   ComPtr<ID3D11Buffer> m_pSphDataBuffer;
-  ComPtr<ID3D11Buffer> m_pDiffuseBuffer;
+  ComPtr<ID3D11Buffer> m_pDiffuseBuffer1;
+  ComPtr<ID3D11Buffer> m_pDiffuseBuffer2;
+  ComPtr<ID3D11Buffer> m_pStateBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pSphBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pSphBufferSRV;
-  ComPtr<ID3D11UnorderedAccessView> m_pDiffuseBufferUAV;
-  ComPtr<ID3D11ShaderResourceView> m_pDiffuseBufferSRV;
+  ComPtr<ID3D11UnorderedAccessView> m_pDiffuseBufferUAV1;
+  ComPtr<ID3D11ShaderResourceView> m_pDiffuseBufferSRV1;
+  ComPtr<ID3D11UnorderedAccessView> m_pDiffuseBufferUAV2;
+  ComPtr<ID3D11ShaderResourceView> m_pDiffuseBufferSRV2;
   ComPtr<ID3D11UnorderedAccessView> m_pHashBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pHashBufferSRV;
   ComPtr<ID3D11UnorderedAccessView> m_pEntriesBufferUAV;
@@ -54,6 +67,7 @@ public:
 private:
   void CreateQueries();
   void CollectTimestamps();
+  void DiffuseSort();
 
   const Settings &m_settings;
   UINT m_num_particles;
@@ -64,11 +78,14 @@ private:
   ComPtr<ID3D11Buffer> m_pHashBuffer;
   ComPtr<ID3D11Buffer> m_pEntriesBuffer;
   ComPtr<ID3D11Buffer> m_pScanHelperBuffer;
-  ComPtr<ID3D11Buffer> m_pStateBuffer;
+  ComPtr<ID3D11Buffer> m_pPotentialsBuffer;
+  ComPtr<ID3D11Buffer> m_pSortCB;
   ComPtr<ID3D11UnorderedAccessView> m_pScanHelperBufferUAV;
   ComPtr<ID3D11ShaderResourceView> m_pScanHelperBufferSRV;
   ComPtr<ID3D11UnorderedAccessView> m_pStateUAV;
   ComPtr<ID3D11ShaderResourceView> m_pStateSRV;
+  ComPtr<ID3D11UnorderedAccessView> m_pPotentialsUAV;
+  ComPtr<ID3D11ShaderResourceView> m_pPotentialsSRV;
 
   ComPtr<ID3D11ComputeShader> m_pClearTableCS;
   ComPtr<ID3D11ComputeShader> m_pCreateHashCS;
@@ -79,11 +96,9 @@ private:
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
   ComPtr<ID3D11ComputeShader> m_pSpawnDiffuseCS;
-  ComPtr<ID3D11ComputeShader> m_pDiffuseDensityCS;
-  ComPtr<ID3D11ComputeShader> m_pDiffusePressureCS;
-  ComPtr<ID3D11ComputeShader> m_pDiffuseForcesCS;
-  ComPtr<ID3D11ComputeShader> m_pDiffusePositionsCS;
-  ComPtr<ID3D11ComputeShader> m_pDiffuseSpawnDiffuseCS;
+  ComPtr<ID3D11ComputeShader> m_pPotentialsCS;
+  ComPtr<ID3D11ComputeShader> m_pBitonicSortCS;
+  ComPtr<ID3D11ComputeShader> m_pTransposeCS;
 
   ComPtr<ID3D11Query> m_pQueryDisjoint;
   ComPtr<ID3D11Query> m_pQuerySphStart;
@@ -106,4 +121,11 @@ private:
   float m_sphOverallTime;
   float m_sortTime;
   UINT m_frameNum;
+
+  struct SortCB {
+    UINT iLevel;
+    UINT iLevelMask;
+    UINT iWidth;
+    UINT iHeight;
+  };
 };

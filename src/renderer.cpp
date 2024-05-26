@@ -83,7 +83,7 @@ bool Renderer::Init(HWND hWnd) {
   // Initial camera setup
   if (SUCCEEDED(result)) {
     m_camera.poi = Vector3{0, 0, 0};
-    m_camera.r = 7.f;
+    m_camera.r = 57.f;
     m_camera.phi = -(float)M_PI / 3;
     m_camera.theta = (float)M_PI / 8;
   }
@@ -233,9 +233,9 @@ bool Renderer::Update() {
   if (SUCCEEDED(result)) {
     m_sceneBuffer.vp = DirectX::XMMatrixMultiply(v, p);
     m_sceneBuffer.cameraPos = cameraPos;
-    m_sceneBuffer.lights[0].pos = Vector4(0, 10, 0, 0);
+    m_sceneBuffer.lights[0].pos = Vector4(0, 20, 0, 0);
     m_sceneBuffer.lights[0].color = Vector4(0.7, 0.7, 0.7, 1);
-    m_sceneBuffer.lights[1].pos = Vector4(-2, 10, 4, 0);
+    m_sceneBuffer.lights[1].pos = Vector4(-2, 20, 4, 0);
     m_sceneBuffer.lights[1].color = Vector4(0.7, 0.7, 0.7, 1);
     m_sceneBuffer.lightCount.x = 2;
     m_sceneBuffer.ambientColor = Vector4(0.3f, 0.3f, 0.3f, 1);

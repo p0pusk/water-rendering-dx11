@@ -17,6 +17,7 @@
 #include "imgui_impl_win32.h"
 #include "particle.h"
 #include "pch.h"
+#include "sph-gpu.h"
 #include "utils.h"
 
 using DX::ThrowIfFailed;
@@ -80,7 +81,7 @@ HRESULT SimRenderer::Init() {
 HRESULT SimRenderer::InitSpheres() {
   auto pDevice = DeviceResources::getInstance().m_pDevice;
   // get sphere data
-  static const size_t SphereSteps = 32;
+  static const size_t SphereSteps = 8;
 
   std::vector<Vector3> sphereVertices;
   std::vector<UINT16> indices;
@@ -149,6 +150,11 @@ HRESULT SimRenderer::InitSpheres() {
       L"shaders/ParticleInstance.vs",
       (ID3D11DeviceChild **)m_pVertexShader.GetAddressOf(), {},
       &pVertexShaderCode);
+  DX::ThrowIfFailed(result);
+
+  result = DX::CompileAndCreateShader(
+      L"shaders/DiffuseInstance.vs",
+      (ID3D11DeviceChild **)m_pDiffuseVertexShader.GetAddressOf());
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
@@ -508,9 +514,11 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   ImGui::Begin("Simulation");
   if (m_settings.marching) {
     RenderMarching(pSceneBuffer);
+    if (m_settings.diffuseEnabled) {
+      RenderDiffuse(pSceneBuffer);
+    }
   } else {
-    RenderSpheres(m_sphGpuAlgo.m_pSphBufferSRV.Get(), m_num_particles,
-                  pSceneBuffer);
+    RenderSpheres(pSceneBuffer);
   }
   m_sphGpuAlgo.ImGuiRender();
   ImGuiRender();
@@ -555,8 +563,40 @@ void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
   }
 }
 
-void SimRenderer::RenderSpheres(ID3D11ShaderResourceView *srv, UINT num,
-                                ID3D11Buffer *pSceneBuffer) {
+void SimRenderer::RenderDiffuse(ID3D11Buffer *pSceneBuffer) {
+  auto dxResources = DeviceResources::getInstance();
+  auto pContext = dxResources.m_pDeviceContext;
+  pContext->OMSetDepthStencilState(m_states->DepthNone(), 0);
+  pContext->OMSetBlendState(m_states->AlphaBlend(), nullptr, 0xffffffff);
+
+  pContext->IASetIndexBuffer(m_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
+
+  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer.Get()};
+  UINT strides[] = {sizeof(Vector3)};
+  UINT offsets[] = {0, 0};
+  pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
+
+  pContext->IASetInputLayout(m_pInputLayout.Get());
+  pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  pContext->VSSetShader(m_pDiffuseVertexShader.Get(), nullptr, 0);
+  pContext->PSSetShader(m_pPixelShader.Get(), nullptr, 0);
+
+  pContext->VSSetConstantBuffers(0, 1, &pSceneBuffer);
+  pContext->VSSetShaderResources(
+      0, 1, m_sphGpuAlgo.m_pDiffuseBufferSRV1.GetAddressOf());
+
+  D3D11_MAPPED_SUBRESOURCE resource;
+  HRESULT result = pContext->Map(m_sphGpuAlgo.m_pStateBuffer.Get(), 0,
+                                 D3D11_MAP_READ, 0, &resource);
+  DX::ThrowIfFailed(result);
+  SphStateBuffer buf;
+  memcpy(&buf, resource.pData, sizeof(SphStateBuffer));
+  pContext->Unmap(m_sphGpuAlgo.m_pStateBuffer.Get(), 0);
+
+  pContext->DrawIndexedInstanced(m_sphereIndexCount, buf.diffuseNum, 0, 0, 0);
+}
+
+void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {
   auto dxResources = DeviceResources::getInstance();
   auto pContext = dxResources.m_pDeviceContext;
   pContext->OMSetDepthStencilState(dxResources.m_pDepthState.Get(), 0);
@@ -577,13 +617,14 @@ void SimRenderer::RenderSpheres(ID3D11ShaderResourceView *srv, UINT num,
 
   ID3D11Buffer *cbuffers[1] = {pSceneBuffer};
   pContext->VSSetConstantBuffers(0, 1, cbuffers);
-  ID3D11ShaderResourceView *srvs[1] = {srv};
-  pContext->VSSetShaderResources(0, 1, srvs);
+  pContext->VSSetShaderResources(0, 1,
+                                 m_sphGpuAlgo.m_pSphBufferSRV.GetAddressOf());
 
   cbuffers[0] = m_sphGpuAlgo.m_pSphCB.Get();
-  pContext->PSSetShaderResources(0, 1, srvs);
+  pContext->PSSetShaderResources(0, 1,
+                                 m_sphGpuAlgo.m_pSphBufferSRV.GetAddressOf());
   pContext->PSSetConstantBuffers(0, 1, cbuffers);
-  pContext->DrawIndexedInstanced(m_sphereIndexCount, num, 0, 0, 0);
+  pContext->DrawIndexedInstanced(m_sphereIndexCount, m_num_particles, 0, 0, 0);
 }
 
 void SimRenderer::CollectTimestamps() {

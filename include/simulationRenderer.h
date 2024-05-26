@@ -96,6 +96,7 @@ private:
   ComPtr<ID3D11ComputeShader> m_pMarchingPreprocessCS;
   ComPtr<ID3D11VertexShader> m_pMarchingVertexShader;
   ComPtr<ID3D11VertexShader> m_pVertexShader;
+  ComPtr<ID3D11VertexShader> m_pDiffuseVertexShader;
   ComPtr<ID3D11VertexShader> m_pMarchingIndirectVertexShader;
   ComPtr<ID3D11Buffer> m_pMarchingOutBuffer;
   ComPtr<ID3D11UnorderedAccessView> m_pMarchingOutBufferUAV;
@@ -138,6 +139,6 @@ private:
   void CollectTimestamps();
 
   void RenderMarching(ID3D11Buffer *pSceneBuffer = nullptr);
-  void RenderSpheres(ID3D11ShaderResourceView *srv, UINT num,
-                     ID3D11Buffer *pSceneBuffer = nullptr);
+  void RenderSpheres(ID3D11Buffer *pSceneBuffer = nullptr);
+  void RenderDiffuse(ID3D11Buffer *pSceneBuffer = nullptr);
 };

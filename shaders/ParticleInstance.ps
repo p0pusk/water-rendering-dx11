@@ -6,15 +6,10 @@ struct VSOutput
 {
     float4 pos : SV_Position;
     float3 worldPos : POSITION;
-    uint particleIndex : ParticleIndex;
+    float4 color : COLOR;
 };
 
 float4 ps(VSOutput pixel) : SV_Target0
 {
-    float min = 30.f;
-    float max = 3000.f;
-    float t = smoothstep(min, max, particles[pixel.particleIndex].density);
-    float3 mix = lerp(float3(0, 0.9, 1), float3(0, 0, 1), t);
-
-    return float4(mix, 1);
+    return pixel.color;
 }

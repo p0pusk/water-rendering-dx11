@@ -2,7 +2,9 @@
 
 #include "BufferHelpers.h"
 #include "device-resources.h"
+#include "particle.h"
 #include "pch.h"
+#include "sph.h"
 #include "utils.h"
 #include <exception>
 #include <format>
@@ -22,13 +24,18 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     m_sphCB.dampingCoeff = m_settings.dampingCoeff;
     m_sphCB.marchingCubeWidth = m_settings.marchingCubeWidth;
     m_sphCB.hashTableSize = m_settings.TABLE_SIZE;
-    m_sphCB.diffuseNum = m_settings.diffuseParticlesNum;
-    m_sphCB.dt.x = m_settings.dt;
+    m_sphCB.diffuseNum = m_settings.diffuseNum;
+    m_sphCB.dt = m_settings.dt;
+    m_sphCB.diffuseEnabled = m_settings.diffuseEnabled;
+    m_sphCB.trappedAirThreshold = m_settings.trappedAirThreshold;
+    m_sphCB.wavecrestThreshold = m_settings.wavecrestThreshold;
+    m_sphCB.energyThreshold = m_settings.energyThreshold;
 
     D3D11_SUBRESOURCE_DATA data = {};
     data.pSysMem = &m_sphCB;
 
     DX::CreateConstantBuffer<SphCB>(&m_pSphCB, 0, &data, "SphConstantBuffer");
+    DX::CreateConstantBuffer<SortCB>(&m_pSortCB, 0, nullptr, "SortCB");
   } catch (...) {
     throw;
   }
@@ -55,7 +62,8 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
 
   try {
     DX::CreateStructuredBuffer<SphStateBuffer>(
-        1, D3D11_USAGE_DEFAULT, 0, nullptr, "SphStateBuffer", &m_pStateBuffer);
+        1, D3D11_USAGE_DEFAULT, D3D11_CPU_ACCESS_READ, nullptr,
+        "SphStateBuffer", &m_pStateBuffer);
 
     DX::CreateBufferUAV(m_pStateBuffer.Get(), 1, "SphStateBufferUAV",
                         &m_pStateUAV);
@@ -67,15 +75,43 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
   }
 
   try {
-    DX::CreateStructuredBuffer<Particle>(
-        m_settings.diffuseParticlesNum, D3D11_USAGE_DEFAULT, 0, nullptr,
-        "DiffuseParticlesBuffer", &m_pDiffuseBuffer);
+    DX::CreateStructuredBuffer<DiffuseParticle>(
+        m_settings.diffuseNum, D3D11_USAGE_DEFAULT, 0, nullptr,
+        "DiffuseParticlesBuffer1", &m_pDiffuseBuffer1);
 
-    DX::CreateBufferUAV(m_pDiffuseBuffer.Get(), m_settings.diffuseParticlesNum,
-                        "SphDataBufferUAV", &m_pDiffuseBufferUAV);
+    DX::CreateBufferUAV(m_pDiffuseBuffer1.Get(), m_settings.diffuseNum,
+                        "SphDataBufferUAV1", &m_pDiffuseBufferUAV1);
 
-    DX::CreateBufferSRV(m_pDiffuseBuffer.Get(), m_settings.diffuseParticlesNum,
-                        "SphDataBufferSRV", &m_pDiffuseBufferSRV);
+    DX::CreateBufferSRV(m_pDiffuseBuffer1.Get(), m_settings.diffuseNum,
+                        "SphDataBufferSRV1", &m_pDiffuseBufferSRV1);
+  } catch (...) {
+    throw;
+  }
+
+  try {
+    DX::CreateStructuredBuffer<DiffuseParticle>(
+        m_settings.diffuseNum, D3D11_USAGE_DEFAULT, 0, nullptr,
+        "DiffuseParticlesBuffer2", &m_pDiffuseBuffer2);
+
+    DX::CreateBufferUAV(m_pDiffuseBuffer2.Get(), m_settings.diffuseNum,
+                        "SphDataBufferUAV2", &m_pDiffuseBufferUAV2);
+
+    DX::CreateBufferSRV(m_pDiffuseBuffer2.Get(), m_settings.diffuseNum,
+                        "SphDataBufferSRV2", &m_pDiffuseBufferSRV2);
+  } catch (...) {
+    throw;
+  }
+
+  try {
+    DX::CreateStructuredBuffer<Potential>(m_num_particles, D3D11_USAGE_DEFAULT,
+                                          0, nullptr, "PotentialsBuffer",
+                                          &m_pPotentialsBuffer);
+
+    DX::CreateBufferUAV(m_pPotentialsBuffer.Get(), m_num_particles,
+                        "PotentialsUAV", &m_pPotentialsUAV);
+
+    DX::CreateBufferSRV(m_pPotentialsBuffer.Get(), m_num_particles,
+                        "PotentialsSRV", &m_pPotentialsSRV);
   } catch (...) {
     throw;
   }
@@ -170,25 +206,22 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
         (ID3D11DeviceChild **)m_pPositionsCS.GetAddressOf());
 
     DX::CompileAndCreateShader(
+        L"shaders/sph/Potentials.cs",
+        (ID3D11DeviceChild **)m_pPotentialsCS.GetAddressOf());
+
+    DX::CompileAndCreateShader(
+        L"shaders/BitonicSort.cs",
+        (ID3D11DeviceChild **)m_pBitonicSortCS.GetAddressOf(), {}, nullptr,
+        "BitonicSort");
+
+    DX::CompileAndCreateShader(
+        L"shaders/BitonicSort.cs",
+        (ID3D11DeviceChild **)m_pTransposeCS.GetAddressOf(), {}, nullptr,
+        "MatrixTranspose");
+
+    DX::CompileAndCreateShader(
         L"shaders/sph/SpawnDiffuse.cs",
         (ID3D11DeviceChild **)m_pSpawnDiffuseCS.GetAddressOf());
-
-    DX::CompileAndCreateShader(
-        L"shaders/sph/Density.cs",
-        (ID3D11DeviceChild **)m_pDiffuseDensityCS.GetAddressOf(), {"DIFFUSE"});
-
-    DX::CompileAndCreateShader(
-        L"shaders/sph/Pressure.cs",
-        (ID3D11DeviceChild **)m_pDiffusePressureCS.GetAddressOf(), {"DIFFUSE"});
-
-    DX::CompileAndCreateShader(
-        L"shaders/sph/Forces.cs",
-        (ID3D11DeviceChild **)m_pDiffuseForcesCS.GetAddressOf(), {"DIFFUSE"});
-
-    DX::CompileAndCreateShader(
-        L"shaders/sph/Positions.cs",
-        (ID3D11DeviceChild **)m_pDiffusePositionsCS.GetAddressOf(),
-        {"DIFFUSE"});
   } catch (...) {
     throw;
   }
@@ -278,11 +311,11 @@ void SphGpu::Update() {
   {
     ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
                                          m_pEntriesBufferSRV.Get()};
-    ID3D11UnorderedAccessView *uavs[3] = {
-        m_pSphBufferUAV.Get(), m_pDiffuseBufferUAV.Get(), m_pStateUAV.Get()};
+    ID3D11UnorderedAccessView *uavs[2] = {m_pSphBufferUAV.Get(),
+                                          m_pStateUAV.Get()};
 
     pContext->CSSetShaderResources(0, 2, srvs);
-    pContext->CSSetUnorderedAccessViews(0, 3, uavs, nullptr);
+    pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
 
     pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
@@ -290,54 +323,53 @@ void SphGpu::Update() {
     pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphPressure.Get());
+    ID3D11UnorderedAccessView *uavsForce[1] = {m_pPotentialsUAV.Get()};
+    pContext->CSSetUnorderedAccessViews(1, 1, uavsForce, nullptr);
     pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphForces.Get());
+    pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
     pContext->CSSetShader(m_pPositionsCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphPosition.Get());
 
-    ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
-    ID3D11UnorderedAccessView *nuavs[3] = {nullptr, nullptr, nullptr};
-    pContext->CSSetShaderResources(0, 2, nsrvs);
-    pContext->CSSetUnorderedAccessViews(0, 3, nuavs, nullptr);
+    if (m_settings.diffuseEnabled) {
+      ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
+      ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+      pContext->CSSetShaderResources(0, 2, nsrvs);
+      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+
+      ID3D11ShaderResourceView *srvsPotentials[3] = {m_pHashBufferSRV.Get(),
+                                                     m_pEntriesBufferSRV.Get(),
+                                                     m_pSphBufferSRV.Get()};
+      ID3D11UnorderedAccessView *uavsPotentials[1] = {m_pPotentialsUAV.Get()};
+      pContext->CSSetUnorderedAccessViews(0, 1, uavsPotentials, nullptr);
+      pContext->CSSetShaderResources(0, 3, srvsPotentials);
+      pContext->CSSetShader(m_pPotentialsCS.Get(), nullptr, 0);
+      pContext->Dispatch(groupNumber, 1, 1);
+
+      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+
+      ID3D11ShaderResourceView *srvsSpawn[2] = {m_pSphBufferSRV.Get(),
+                                                m_pPotentialsSRV.Get()};
+      ID3D11UnorderedAccessView *uavsSpawn[2] = {m_pDiffuseBufferUAV1.Get(),
+                                                 m_pStateUAV.Get()};
+      pContext->CSSetUnorderedAccessViews(0, 2, uavsSpawn, nullptr);
+      pContext->CSSetShaderResources(0, 2, srvsSpawn);
+      pContext->CSSetShader(m_pSpawnDiffuseCS.Get(), nullptr, 0);
+      pContext->Dispatch(groupNumber, 1, 1);
+
+      pContext->CSSetShaderResources(0, 2, nsrvs);
+      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+      DiffuseSort();
+    }
+
+    ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
+    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+    pContext->CSSetShaderResources(0, 3, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
   }
 
-  // {
-  //   ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
-  //   ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV.Get(),
-  //                                         m_pStateUAV.Get()};
-  //
-  //   pContext->CSSetShaderResources(0, 1, srvs);
-  //   pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
-  //
-  //   pContext->CSSetShader(m_pSpawnDiffuseCS.Get(), nullptr, 0);
-  //   pContext->Dispatch(groupNumber, 1, 1);
-  // }
-  //
-  // {
-  //   UINT num = DivUp(m_settings.diffuseParticlesNum, m_settings.blockSize);
-  //   ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
-  //                                        m_pEntriesBufferSRV.Get()};
-  //   ID3D11UnorderedAccessView *uavs[3] = {
-  //       m_pSphBufferUAV.Get(), m_pDiffuseBufferUAV.Get(), m_pStateUAV.Get()};
-  //
-  //   pContext->CSSetShaderResources(0, 2, srvs);
-  //   pContext->CSSetUnorderedAccessViews(0, 3, uavs, nullptr);
-  //
-  //   pContext->CSSetShader(m_pDiffuseDensityCS.Get(), nullptr, 0);
-  //   pContext->CSSetShader(m_pDiffusePressureCS.Get(), nullptr, 0);
-  //   pContext->Dispatch(num, 1, 1);
-  //   pContext->CSSetShader(m_pDiffuseForcesCS.Get(), nullptr, 0);
-  //   pContext->Dispatch(num, 1, 1);
-  //   pContext->CSSetShader(m_pDiffusePositionsCS.Get(), nullptr, 0);
-  //   pContext->Dispatch(num, 1, 1);
-  //
-  //   ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
-  //   ID3D11UnorderedAccessView *nuavs[3] = {nullptr, nullptr, nullptr};
-  //   pContext->CSSetShaderResources(0, 2, nsrvs);
-  //   pContext->CSSetUnorderedAccessViews(0, 3, nuavs, nullptr);
-  // }
   pContext->End(m_pQueryDisjoint.Get());
 }
 
@@ -431,4 +463,69 @@ void SphGpu::ImGuiRender() {
     ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
   }
   m_frameNum++;
+}
+
+void SphGpu::DiffuseSort() {
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+  pContext->CSSetConstantBuffers(0, 1, m_pSortCB.GetAddressOf());
+
+  const UINT NUM_ELEMENTS = m_settings.diffuseNum;
+  const UINT MATRIX_WIDTH = BITONIC_BLOCK_SIZE;
+  const UINT MATRIX_HEIGHT = NUM_ELEMENTS / BITONIC_BLOCK_SIZE;
+
+  // Sort the data
+  // First sort the rows for the levels <= to the block size
+  for (UINT level = 2; level <= BITONIC_BLOCK_SIZE; level <<= 1) {
+    SortCB constants = {level, level, MATRIX_HEIGHT, MATRIX_WIDTH};
+    pContext->UpdateSubresource(m_pSortCB.Get(), 0, nullptr, &constants, 0, 0);
+
+    // Sort the row data
+    UINT UAVInitialCounts = 0;
+    pContext->CSSetUnorderedAccessViews(
+        0, 1, m_pDiffuseBufferUAV1.GetAddressOf(), &UAVInitialCounts);
+    pContext->CSSetShader(m_pBitonicSortCS.Get(), nullptr, 0);
+    pContext->Dispatch(NUM_ELEMENTS / BITONIC_BLOCK_SIZE, 1, 1);
+  }
+
+  // Then sort the rows and columns for the levels > than the block size
+  // Transpose. Sort the Columns. Transpose. Sort the Rows.
+  for (UINT level = (BITONIC_BLOCK_SIZE << 1); level <= NUM_ELEMENTS;
+       level <<= 1) {
+    SortCB constants1 = {(level / BITONIC_BLOCK_SIZE),
+                         (level & ~NUM_ELEMENTS) / BITONIC_BLOCK_SIZE,
+                         MATRIX_WIDTH, MATRIX_HEIGHT};
+    pContext->UpdateSubresource(m_pSortCB.Get(), 0, nullptr, &constants1, 0, 0);
+
+    // Transpose the data from buffer 1 into buffer 2
+    ID3D11ShaderResourceView *pViewNULL = nullptr;
+    UINT UAVInitialCounts = 0;
+    pContext->CSSetShaderResources(0, 1, &pViewNULL);
+    pContext->CSSetUnorderedAccessViews(
+        0, 1, m_pDiffuseBufferUAV2.GetAddressOf(), &UAVInitialCounts);
+    pContext->CSSetShaderResources(0, 1, m_pDiffuseBufferSRV1.GetAddressOf());
+    pContext->CSSetShader(m_pTransposeCS.Get(), nullptr, 0);
+    pContext->Dispatch(MATRIX_WIDTH / TRANSPOSE_BLOCK_SIZE,
+                       MATRIX_HEIGHT / TRANSPOSE_BLOCK_SIZE, 1);
+
+    // Sort the transposed column data
+    pContext->CSSetShader(m_pBitonicSortCS.Get(), nullptr, 0);
+    pContext->Dispatch(NUM_ELEMENTS / BITONIC_BLOCK_SIZE, 1, 1);
+
+    SortCB constants2 = {BITONIC_BLOCK_SIZE, level, MATRIX_HEIGHT,
+                         MATRIX_WIDTH};
+    pContext->UpdateSubresource(m_pSortCB.Get(), 0, nullptr, &constants2, 0, 0);
+
+    // Transpose the data from buffer 2 back into buffer 1
+    pContext->CSSetShaderResources(0, 1, &pViewNULL);
+    pContext->CSSetUnorderedAccessViews(
+        0, 1, m_pDiffuseBufferUAV1.GetAddressOf(), &UAVInitialCounts);
+    pContext->CSSetShaderResources(0, 1, m_pDiffuseBufferSRV2.GetAddressOf());
+    pContext->CSSetShader(m_pTransposeCS.Get(), nullptr, 0);
+    pContext->Dispatch(MATRIX_HEIGHT / TRANSPOSE_BLOCK_SIZE,
+                       MATRIX_WIDTH / TRANSPOSE_BLOCK_SIZE, 1);
+
+    // Sort the row data
+    pContext->CSSetShader(m_pBitonicSortCS.Get(), nullptr, 0);
+    pContext->Dispatch(NUM_ELEMENTS / BITONIC_BLOCK_SIZE, 1, 1);
+  }
 }

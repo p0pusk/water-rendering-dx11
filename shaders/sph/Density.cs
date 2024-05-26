@@ -3,25 +3,16 @@
 StructuredBuffer<uint> hash : register(t0);
 StructuredBuffer<uint> entries : register(t1);
 RWStructuredBuffer<Particle> particles : register(u0);
-RWStructuredBuffer<DiffuseParticle> diffuse : register(u1);
 
 [numthreads(BLOCK_SIZE, 1, 1)]
 void cs(uint3 DTid : SV_DispatchThreadID)
 {
-#ifdef DIFFUSE
-  if (DTid.x >= diffuseParticlesNum) return;
-#else
   if (DTid.x >= particlesNum) return;
-#endif
 
   uint key, startIdx, entriesNum, index;
   float d;
   float density = 0.f;
-#ifdef DIFFUSE
-  float3 position = diffuse[DTid.x].position;
-#else
   float3 position = particles[DTid.x].position;
-#endif
 
   for (int i = -1; i <= 1; ++i) {
     for (int j = -1; j <= 1; ++j) {
@@ -33,16 +24,12 @@ void cs(uint3 DTid : SV_DispatchThreadID)
           index = entries[startIdx + c];
           d = distance(particles[index].position, position);
           if (d < h) {
-            density += mass * poly6 * pow(h2 - d * d, 3);
+            density += mass * W(d, h);
           }
         }
       }
     }
   }
 
-#ifdef DIFFUSE
-  diffuse[DTid.x].density = density;
-#else
   particles[DTid.x].density = density;
-#endif
 }
