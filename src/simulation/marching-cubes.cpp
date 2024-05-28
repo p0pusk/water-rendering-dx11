@@ -11,13 +11,15 @@ void MarchingCube::update_grid() {
     m_voxel_grid.data[i] = false;
   }
   for (auto &p : m_particles) {
-    XMINT3 dPos = XMINT3(std::round(p.position.x / m_width),
-                         std::round(p.position.y / m_width),
-                         std::round(p.position.z / m_width));
-    int radius = std::ceil(m_particle_radius / m_width);
-    for (int i = -radius; i <= radius; i++) {
-      for (int j = -radius; j <= radius; j++) {
-        for (int k = -radius; k <= radius; k++) {
+    XMINT3 dPos = XMINT3(std::round(p.position.x / m_width.x),
+                         std::round(p.position.y / m_width.y),
+                         std::round(p.position.z / m_width.z));
+    XMINT3 radius =
+        XMINT3(m_particle_radius / m_width.y, m_particle_radius / m_width.y,
+               m_particle_radius / m_width.z);
+    for (int i = -radius.x; i <= radius.x; i++) {
+      for (int j = -radius.y; j <= radius.y; j++) {
+        for (int k = -radius.z; k <= radius.z; k++) {
           XMINT3 cubePos(i + dPos.x, j + dPos.y, k + dPos.z);
           if (i + dPos.x < 0 || j + dPos.y < 0 || k + dPos.z < 0 ||
               i + dPos.x >= m_num.x || j + dPos.y >= m_num.y ||

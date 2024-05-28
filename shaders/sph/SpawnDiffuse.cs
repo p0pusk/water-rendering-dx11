@@ -55,8 +55,8 @@ void cs(uint3 DTid : SV_DispatchThreadID)
     return;
   }
 
-  uint kTA = 5;
-  uint kWC = 20;
+  uint kTA = 50;
+  uint kWC = 80;
   int toSpawn = potentials[DTid.x].energy * (kTA *
     potentials[DTid.x].trappedAir + kWC * potentials[DTid.x].waveCrest);
   int index = diffuseParticlesNum - state[0].curDiffuseNum;
@@ -66,13 +66,12 @@ void cs(uint3 DTid : SV_DispatchThreadID)
     OrthogonalVectors basis = ComputeOrthogonalVectors(normalize(velocity));
     float r = h * sqrt(RandomFloat(3 * index));
     float theta = RandomFloat(3 * index + 1) * 2 * PI;
-    float dist = RandomFloat(3 * index + 2) * length(dt * velocity);
+    float dist = RandomFloat(3 * index + 2) * length(dt * normalize(velocity));
     diffuse[index].position = particles[DTid.x].position + r * cos(theta) * basis.v1
-      + r * sin(theta) * basis.v2 + dist * normalize(velocity);
-    diffuse[index].velocity = particles[DTid.x].position + r * cos(theta) * basis.v1
-      + r * sin(theta) * basis.v2 + velocity;
+      + r * sin(theta) * basis.v2 + dist * normalize(velocity) + marchingWidth / 2;
+    diffuse[index].velocity = r * cos(theta) * basis.v1 + r * sin(theta) * basis.v2 + velocity;
 
-    diffuse[index].lifetime = 1.f;
+    diffuse[index].lifetime = 5 * dt;
     diffuse[index].origin = DTid.x;
   }
 }

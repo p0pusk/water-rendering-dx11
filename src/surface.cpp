@@ -106,7 +106,7 @@ HRESULT Surface::Init(Vector3 pos) {
     auto m = DirectX::XMMatrixInverse(nullptr, geomBuffer.m);
     m = DirectX::XMMatrixTranspose(m);
     geomBuffer.norm = m;
-    geomBuffer.color = Vector4(0.75f, 0.75f, 0.75f, 1.f);
+    geomBuffer.color = Vector4(0.25f, 0.25f, 0.25f, 1.f);
     geomBuffer.shine = Vector4(1.f, 0, 0, 0);
 
     D3D11_SUBRESOURCE_DATA data;

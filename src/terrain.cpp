@@ -36,7 +36,7 @@ void Terrain::Init() {
 
   try {
     GeomBuffer geomBuffer;
-    geomBuffer.m = XMMatrixScaling(0.2f, 0.2f, 0.2f) *
+    geomBuffer.m = XMMatrixScaling(0.18f, 0.18f, 0.18f) *
                    XMMatrixRotationY(acos(-1)) *
                    XMMatrixTranslation(0.0, 0, 0.0);
     geomBuffer.norm = XMMatrixInverse(nullptr, XMMatrixTranspose(geomBuffer.m));

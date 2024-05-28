@@ -12,13 +12,13 @@ struct Particle {
   Vector3 velocity;
   UINT hash;
   Vector3 normal;
-  Vector3 externalForces;
 };
 
 struct Potential {
   float waveCrest;
   float trappedAir;
   float energy;
+  float curvature;
 };
 
 struct DiffuseParticle {

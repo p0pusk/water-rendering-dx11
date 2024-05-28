@@ -81,7 +81,7 @@ HRESULT SimRenderer::Init() {
 HRESULT SimRenderer::InitSpheres() {
   auto pDevice = DeviceResources::getInstance().m_pDevice;
   // get sphere data
-  static const size_t SphereSteps = 8;
+  static const size_t SphereSteps = 4;
 
   std::vector<Vector3> sphereVertices;
   std::vector<UINT16> indices;
@@ -354,11 +354,6 @@ HRESULT SimRenderer::InitMarching() {
   DX::ThrowIfFailed(result);
 
   result = DX::CompileAndCreateShader(
-      L"shaders/marching-cubes/MarchingPreprocess.cs",
-      (ID3D11DeviceChild **)m_pMarchingPreprocessCS.GetAddressOf());
-  DX::ThrowIfFailed(result);
-
-  result = DX::CompileAndCreateShader(
       L"shaders/marching-cubes/SurfaceCounter.cs",
       (ID3D11DeviceChild **)m_pSurfaceCountCS.GetAddressOf());
   DX::ThrowIfFailed(result);
@@ -513,10 +508,10 @@ void SimRenderer::Update(float dt) {
 void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   ImGui::Begin("Simulation");
   if (m_settings.marching) {
+    RenderMarching(pSceneBuffer);
     if (m_settings.diffuseEnabled) {
       RenderDiffuse(pSceneBuffer);
     }
-    RenderMarching(pSceneBuffer);
   } else {
     RenderSpheres(pSceneBuffer);
   }
@@ -569,15 +564,7 @@ void SimRenderer::RenderDiffuse(ID3D11Buffer *pSceneBuffer) {
   pContext->OMSetDepthStencilState(m_states->DepthReverseZ(), 0);
   pContext->OMSetBlendState(m_states->AlphaBlend(), nullptr, 0xffffffff);
 
-  pContext->IASetIndexBuffer(m_pIndexBuffer.Get(), DXGI_FORMAT_R16_UINT, 0);
-
-  ID3D11Buffer *vertexBuffers[] = {m_pVertexBuffer.Get()};
-  UINT strides[] = {sizeof(Vector3)};
-  UINT offsets[] = {0, 0};
-  pContext->IASetVertexBuffers(0, 1, vertexBuffers, strides, offsets);
-
-  pContext->IASetInputLayout(m_pInputLayout.Get());
-  pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+  pContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
   pContext->VSSetShader(m_pDiffuseVertexShader.Get(), nullptr, 0);
   pContext->PSSetShader(m_pPixelShader.Get(), nullptr, 0);
 
@@ -593,7 +580,7 @@ void SimRenderer::RenderDiffuse(ID3D11Buffer *pSceneBuffer) {
   memcpy(&buf, resource.pData, sizeof(SphStateBuffer));
   pContext->Unmap(m_sphGpuAlgo.m_pStateBuffer.Get(), 0);
 
-  pContext->DrawIndexedInstanced(m_sphereIndexCount, buf.diffuseNum, 0, 0, 0);
+  pContext->DrawInstanced(1, buf.diffuseNum, 0, 0);
 }
 
 void SimRenderer::RenderSpheres(ID3D11Buffer *pSceneBuffer) {

@@ -6,32 +6,31 @@ cbuffer SphCB : register(b0) {
   float mass;
   float dynamicViscosity;
   float dampingCoeff;
-  float marchingWidth;
   uint g_tableSize;
+  float3 marchingWidth;
   uint diffuseParticlesNum;
   float dt;
   float diffuseEnabled;
   float2 trappedAirThreshold;
   float2 wavecrestThreshold;
   float2 energyThreshold;
-  float2 padding;
 };
 
 struct Particle {
   float3 position;
   float density;
-  float pressure;
   float3 force;
+  float pressure;
   float3 velocity;
   uint hash;
   float3 normal;
-  float3 externalForces;
 };
 
 struct Potential {
   float waveCrest;
   float trappedAir;
   float energy;
+  float curvature;
 };
 
 struct DiffuseParticle {

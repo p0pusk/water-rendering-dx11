@@ -261,6 +261,8 @@ void SphGpu::CreateQueries() {
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPressure));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphForces));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPosition));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphSort));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphSortStart));
 }
 
 void SphGpu::Update() {
@@ -345,6 +347,9 @@ void SphGpu::Update() {
     pContext->CSSetShaderResources(0, 2, nsrvs);
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
   }
+  pContext->End(m_pQuerySphSortStart.Get());
+  // DiffuseSort();
+  pContext->End(m_pQuerySphSort.Get());
 
   if (m_settings.diffuseEnabled) {
     {
@@ -412,7 +417,7 @@ void SphGpu::CollectTimestamps() {
   // Get all the timestamps
   UINT64 tsSphStart = 0, tsSphPrefix = 0, tsSphClear = 0, tsSphHash = 0,
          tsSphDensity = 0, tsSphPressure = 0, tsSphForces = 0,
-         tsSphPositions = 0;
+         tsSphPositions = 0, tsSortStart, tsSortEnd;
 
   DX::ThrowIfFailed(
       pContext->GetData(m_pQuerySphStart.Get(), &tsSphStart, sizeof(UINT64), 0),
@@ -439,6 +444,13 @@ void SphGpu::CollectTimestamps() {
                                       &tsSphPositions, sizeof(UINT64), 0),
                     "Failed in GetData sphPrefix");
 
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphSortStart.Get(), &tsSortStart,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphSort.Get(), &tsSortEnd, sizeof(UINT64), 0),
+      "Failed in GetData sphPrefix");
+
   // Convert to real time
   m_sphClearTime =
       float(tsSphClear - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
@@ -454,6 +466,8 @@ void SphGpu::CollectTimestamps() {
                     float(tsDisjoint.Frequency) * 1000.0f;
   m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
                        float(tsDisjoint.Frequency) * 1000.0f;
+  m_sortTime =
+      float(tsSortEnd - tsSortStart) / float(tsDisjoint.Frequency) * 1000.0f;
 
   m_sphOverallTime = m_sphPrefixTime + m_sphClearTime + m_sphCreateHashTime +
                      m_sphDensityTime + m_sphPressureTime + m_sphForcesTime +
@@ -479,6 +493,9 @@ void SphGpu::ImGuiRender() {
     ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
     ImGui::Text("Prefix time: %f ms", m_sphPrefixTime);
     ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
+    ImGui::Text("Prefix overall time: %f ms",
+                m_sphClearTime + m_sphPrefixTime + m_sphCreateHashTime);
+    ImGui::Text("Sort time: %.3f ms", m_sortTime);
     ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
     ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
     ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
@@ -487,7 +504,14 @@ void SphGpu::ImGuiRender() {
   m_frameNum++;
 }
 
-void SphGpu::DiffuseSort() {
+void SphGpu::UpdateSPH() {
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+  pContext->End(m_pQuerySphStart.Get());
+
+  UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
+}
+
+void SphGpu::DiffuseBitonicSort() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
   pContext->CSSetConstantBuffers(0, 1, m_pSortCB.GetAddressOf());
 

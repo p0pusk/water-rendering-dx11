@@ -93,7 +93,6 @@ private:
   ComPtr<ID3D11ComputeShader> m_pTableCS;
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
-  ComPtr<ID3D11ComputeShader> m_pMarchingPreprocessCS;
   ComPtr<ID3D11VertexShader> m_pMarchingVertexShader;
   ComPtr<ID3D11VertexShader> m_pVertexShader;
   ComPtr<ID3D11VertexShader> m_pDiffuseVertexShader;

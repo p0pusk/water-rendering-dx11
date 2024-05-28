@@ -15,7 +15,7 @@ float3 CalculateColor(in float3 objColor, in float3 objNormal, in float3 pos,
     float lightDist = length(lightDir);
     lightDir /= lightDist;
 
-    float atten = clamp(1.0 / (lightDist * lightDist), 0, 1);
+    float atten = 50 * clamp(1.0 / (lightDist * lightDist), 0, 1);
 
     if (trans && dot(lightDir, normal) < 0.0) {
       normal = -normal;
@@ -53,7 +53,7 @@ float3 ColorWater(in float3 objColor, in float3 objNormal, in float3 pos,
     float lightDist = length(lightDir);
     lightDir /= lightDist;
 
-    float atten = clamp(1.0 / (lightDist * lightDist), 0, 1);
+    float atten = 50 * clamp(1.0 / (lightDist * lightDist), 0, 1);
 
     if (dot(lightDir, normal) < 0.0) {
       normal = -normal;

@@ -19,9 +19,9 @@ public:
   MarchingCube(const Settings &settings, const std::vector<Particle> &particles)
       : m_particles(particles), m_width(settings.marchingCubeWidth),
         m_worldLen(settings.boundaryLen), m_worldOffset(settings.worldOffset),
-        m_num(XMINT3(std::ceil(m_worldLen.x / m_width),
-                     std::ceil(m_worldLen.y / m_width),
-                     std::ceil(m_worldLen.z / m_width))),
+        m_num(XMINT3(std::ceil(m_worldLen.x / m_width.x),
+                     std::ceil(m_worldLen.y / m_width.y),
+                     std::ceil(m_worldLen.z / m_width.z))),
         m_particle_radius(settings.h) {
     int size = m_num.x * m_num.y * m_num.z;
     m_voxel_grid.data.resize(size);
@@ -49,7 +49,7 @@ private:
   };
   VoxelGrid m_voxel_grid;
   const std::vector<Particle> &m_particles;
-  float m_width;
+  Vector3 m_width;
   Vector3 m_worldLen;
   Vector3 m_worldOffset;
   XMINT3 m_num;

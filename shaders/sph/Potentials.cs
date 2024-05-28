@@ -14,7 +14,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
   float d;
   uint key, startIdx, entriesNum, index, c;
   float velocityDiff = 0.f;
-  float curvature = 0.f;
+  float curvature = potentials[DTid.x].curvature;
 
   float3 position = particles[DTid.x].position;
   float3 normal = particles[DTid.x].normal;
@@ -37,13 +37,8 @@ void cs(uint3 DTid : SV_DispatchThreadID)
           if (d < h && index != DTid.x) {
             float3 v_ij = velocity - particles[index].velocity;
             float lengthV = length(v_ij);
-            float lenghtX = length(position - particles[index].position);
-            if (lengthV != 0 && lenghtX != 0) {
-              velocityDiff += lengthV * (1 - dot(v_ij / lengthV, (position - particles[index].position) / lenghtX)) * W(d, h);
-            }
-
-            if (dot(particles[index].position - position, normal) < 0) {
-              curvature += (1 - dot(normal, particles[index].normal)) * W(d, h);
+            if (lengthV != 0 && d != 0) {
+              velocityDiff += lengthV * (1 - dot(normalize(v_ij), normalize(position - particles[index].position))) * (1 - d / h);
             }
           }
         }

@@ -14,7 +14,6 @@ StructuredBuffer<DiffuseParticle> particles : register(t0);
 
 struct VSInput
 {
-    float3 pos : POSITION;
     uint instanceID : SV_InstanceID;
 };
 
@@ -29,8 +28,8 @@ VSOutput vs(VSInput vertex)
 {
     VSOutput result;
 
-    result.pos = mul(vp, float4(particles[vertex.instanceID].position + vertex.pos, 1));
-    result.worldPos = particles[vertex.instanceID].position + vertex.pos;
+    result.pos = mul(vp, float4(particles[vertex.instanceID].position, 1));
+    result.worldPos = particles[vertex.instanceID].position;
     uint type = particles[vertex.instanceID].type;
     if (type == 0) {
       result.color = float4(0, 0, 1, 1);
@@ -40,7 +39,7 @@ VSOutput vs(VSInput vertex)
       result.color = float4(1, 0, 0, 1);
     }
 
-  result.color= float4(1, 1, 1, 1);
+     result.color= float4(0.8, 0.8, 0.8, 1);
 
     return result;
 }

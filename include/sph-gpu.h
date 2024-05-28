@@ -21,15 +21,14 @@ struct SphCB {
   float mass;
   float dynamicViscosity;
   float dampingCoeff;
-  float marchingCubeWidth;
   UINT hashTableSize;
+  Vector3 marchingCubeWidth;
   UINT diffuseNum;
   float dt;
   float diffuseEnabled;
   Vector2 trappedAirThreshold;
   Vector2 wavecrestThreshold;
   Vector2 energyThreshold;
-  Vector2 padding;
 };
 
 struct SphStateBuffer {
@@ -67,7 +66,8 @@ public:
 private:
   void CreateQueries();
   void CollectTimestamps();
-  void DiffuseSort();
+  void DiffuseBitonicSort();
+  void UpdateSPH();
 
   const Settings &m_settings;
   UINT m_num_particles;
@@ -105,6 +105,8 @@ private:
   ComPtr<ID3D11Query> m_pQuerySphStart;
   ComPtr<ID3D11Query> m_pQuerySphClear;
   ComPtr<ID3D11Query> m_pQuerySphHash;
+  ComPtr<ID3D11Query> m_pQuerySphSort;
+  ComPtr<ID3D11Query> m_pQuerySphSortStart;
   ComPtr<ID3D11Query> m_pQuerySphPrefix;
   ComPtr<ID3D11Query> m_pQuerySphDensity;
   ComPtr<ID3D11Query> m_pQuerySphPressure;
