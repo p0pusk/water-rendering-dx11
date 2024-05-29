@@ -1,8 +1,8 @@
-#include "shaders/SceneCB.h"
+#include "./SceneCB.hlsli"
 
 float3 CalculateColor(in float3 objColor, in float3 objNormal, in float3 pos,
                       in float shine, in bool trans) {
-  float3 finalColor = objColor * ambientColor;
+  float3 finalColor = objColor * ambientColor.xyz;
 
   if (lightCount.z > 0) {
     return float3(objNormal * 0.5 + float3(0.5, 0.5, 0.5));
@@ -40,7 +40,7 @@ float3 CalculateColor(in float3 objColor, in float3 objNormal, in float3 pos,
 
 float3 ColorWater(in float3 objColor, in float3 objNormal, in float3 pos,
                   in float shine) {
-  float3 finalColor = objColor * ambientColor;
+  float3 finalColor = objColor * ambientColor.xyz;
 
   if (lightCount.z > 0) {
     return float3(objNormal * 0.5 + float3(0.5, 0.5, 0.5));

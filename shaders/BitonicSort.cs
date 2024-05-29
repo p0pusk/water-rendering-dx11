@@ -16,10 +16,10 @@
 //--------------------------------------------------------------------------------------
 cbuffer CB : register( b0 )
 {
-    unsigned int g_iLevel;
-    unsigned int g_iLevelMask;
-    unsigned int g_iWidth;
-    unsigned int g_iHeight;
+    uint g_iLevel;
+    uint g_iLevelMask;
+    uint g_iWidth;
+    uint g_iHeight;
 };
 
 //--------------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ void BitonicSort( uint3 Gid : SV_GroupID,
     GroupMemoryBarrierWithGroupSync();
     
     // Sort the shared data
-    for (unsigned int j = g_iLevel >> 1 ; j > 0 ; j >>= 1)
+    for (uint j = g_iLevel >> 1 ; j > 0 ; j >>= 1)
     {
         DiffuseParticle result;
         if ((shared_data[GI & ~j].lifetime <= shared_data[GI | j].lifetime) == (bool)(g_iLevelMask & DTid.x)) {

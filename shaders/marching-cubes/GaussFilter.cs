@@ -1,4 +1,4 @@
-#include "shaders/Sph.h"
+#include "../Sph.hlsli"
 
 #define KERNEL_SIZE_X 5
 #define KERNEL_SIZE_Y 5

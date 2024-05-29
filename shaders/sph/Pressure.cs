@@ -1,4 +1,4 @@
-#include "shaders/Sph.h"
+#include "../Sph.hlsli"
 
 RWStructuredBuffer<Particle> particles : register(u0);
 

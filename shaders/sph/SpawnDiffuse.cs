@@ -1,4 +1,4 @@
-#include "shaders/Sph.h"
+#include "../Sph.hlsli"
 
 StructuredBuffer<Particle> particles : register(t0);
 StructuredBuffer<Potential> potentials : register(t1);

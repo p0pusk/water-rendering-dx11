@@ -1,4 +1,4 @@
-#include "shaders/Sph.h"
+#include "../Sph.hlsli"
 
 RWStructuredBuffer<DiffuseParticle> diffuse : register(u0);
 RWStructuredBuffer<State> state : register(u1);

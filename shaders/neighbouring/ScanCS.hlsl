@@ -46,7 +46,7 @@ void CSScan( uint3 DTid, uint GI, uint x )         // Change the type of x here 
     // Down sweep
     bool n = true;
     [unroll]
-    for ( stride = groupthreads / 2; stride >= 1; stride >>= 1 )
+    for ( uint stride = groupthreads / 2; stride >= 1; stride >>= 1 )
     {
         GroupMemoryBarrierWithGroupSync();
 

@@ -1,4 +1,4 @@
-#include "shaders/SceneCB.h"
+#include "./SceneCB.hlsli"
 
 struct Particle {
   float3 position;

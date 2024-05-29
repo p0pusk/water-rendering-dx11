@@ -1,5 +1,5 @@
-#include "shaders/Sph.h"
-#include "shaders/LookUpTable.h"
+#include "../Sph.hlsli"
+#include "../LookUpTable.hlsli"
 
 
 struct Triangulation

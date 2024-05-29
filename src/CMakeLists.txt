@@ -1,23 +1,23 @@
 set(
   SRC
-  main.cpp
-  utils.cpp
+  ./main.cpp
+  ./utils.cpp
   ../include/utils.h
-  renderer.cpp
-  ./terrain.cpp
-  DDS.cpp
-  cubemap.cpp
-  surface.cpp
-  ./ScanCS.cpp
-  ./miku.cpp
-  device-resources.cpp
-  simulation/marching-cubes.cpp
-  simulation/water.cpp
-  simulationRenderer.cpp
-  simulation/heightfield.cpp
-  simulation/sph.cpp
-  simulation/sph-gpu.cpp
-  simulation/settings.h
+  ./renderer.cpp
+  ./DDS.cpp
+  ./objects/cubemap.cpp
+  ./objects/surface.cpp
+  ./simulation/ScanCS.cpp
+  ./objects/miku.cpp
+  ./objects/terrain.cpp
+  ./device-resources.cpp
+  ./simulation/marching-cubes.cpp
+  ./simulation/water.cpp
+  ./simulationRenderer.cpp
+  ./simulation/heightfield.cpp
+  ./simulation/sph/sph.cpp
+  ./simulation/sph/sph-gpu.cpp
+  ./simulation/settings.h
 )
 
 add_executable(${PROJECT_NAME} WIN32

@@ -1,4 +1,4 @@
-#include "shaders/SceneCB.h"
+#include "SceneCB.hlsli"
 
 struct DiffuseParticle {
   float3 position;

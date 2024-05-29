@@ -81,10 +81,10 @@ HRESULT DX::CompileAndCreateShader(const std::wstring &path,
   // Try to compile
   ID3DBlob *pCode = nullptr;
   ID3DBlob *pErrMsg = nullptr;
-  HRESULT result =
-      D3DCompile(data.data(), data.size(), WCSToMBS(path).c_str(),
-                 shaderDefines.data(), &includeHandler, entryPoint.c_str(),
-                 platform.c_str(), flags1, 0, &pCode, &pErrMsg);
+  HRESULT result = D3DCompile(
+      data.data(), data.size(), WCSToMBS(path).c_str(), shaderDefines.data(),
+      D3D_COMPILE_STANDARD_FILE_INCLUDE, entryPoint.c_str(), platform.c_str(),
+      flags1, 0, &pCode, &pErrMsg);
   if (!SUCCEEDED(result) && pErrMsg != nullptr) {
     OutputDebugStringA((const char *)pErrMsg->GetBufferPointer());
   }

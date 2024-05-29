@@ -1,4 +1,4 @@
-#include "shaders/Sph.h"
+#include "../Sph.hlsli"
 
 StructuredBuffer<uint> hash : register(t0);
 StructuredBuffer<uint> entries : register(t1);

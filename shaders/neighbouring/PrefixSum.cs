@@ -1,4 +1,4 @@
-#include "shaders/Sph.h"
+#include "../Sph.hlsli"
 
 RWStructuredBuffer<uint> grid : register(u0);
 

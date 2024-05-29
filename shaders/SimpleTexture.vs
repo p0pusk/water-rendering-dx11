@@ -1,4 +1,4 @@
-#include "shaders/SceneCB.h"
+#include "./SceneCB.hlsli"
 
 cbuffer GeomBuffer : register (b1)
 {
@@ -36,7 +36,7 @@ VSOutput vs(VSInput vertex)
     result.worldPos = worldPos.xyz;
     result.uv = float2(vertex.uv.x, 1 - vertex.uv.y);
     result.tang = normalize(mul(norm, vertex.tang).xyz);
-    result.norm = normalize(mul(norm, float4(vertex.norm, 0)));
+    result.norm = normalize(mul(norm, float4(vertex.norm, 0))).xyz;
     result.color = vertex.color;
 
     return result;

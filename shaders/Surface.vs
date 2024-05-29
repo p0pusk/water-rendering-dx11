@@ -1,4 +1,4 @@
-#include "shaders/SceneCB.h"
+#include "./SceneCB.hlsli"
 
 cbuffer GeomBuffer : register (b1)
 {
