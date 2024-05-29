@@ -66,7 +66,7 @@ public:
 
   HRESULT Init();
   void Update(float dt);
-  void Render(ID3D11Buffer *pSceneBuffer = nullptr);
+  void Render(Vector4 cameraPos, ID3D11Buffer *pSceneBuffer = nullptr);
   void ImGuiRender();
 
   const Settings &m_settings;
@@ -130,6 +130,7 @@ private:
   float m_marchingClear;
   float m_marchingPrep;
   float m_marchingMain;
+  float m_marchingSum;
   UINT m_frameNum;
 
   HRESULT InitSpheres();
@@ -137,7 +138,7 @@ private:
 
   void CollectTimestamps();
 
-  void RenderMarching(ID3D11Buffer *pSceneBuffer = nullptr);
+  void RenderMarching(Vector4 cameraPos, ID3D11Buffer *pSceneBuffer = nullptr);
   void RenderSpheres(ID3D11Buffer *pSceneBuffer = nullptr);
   void RenderDiffuse(ID3D11Buffer *pSceneBuffer = nullptr);
 };

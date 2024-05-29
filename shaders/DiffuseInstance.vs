@@ -7,6 +7,7 @@ struct DiffuseParticle {
   uint type;
   uint origin;
   float lifetime;
+  uint neighbours;
 };
 
 
@@ -39,7 +40,7 @@ VSOutput vs(VSInput vertex)
       result.color = float4(1, 0, 0, 1);
     }
 
-     result.color= float4(0.8, 0.8, 0.8, 1);
+     result.color= float4(0.5, 0.5, 0.5, 0.5);
 
     return result;
 }

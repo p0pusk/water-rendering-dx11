@@ -67,7 +67,9 @@ private:
   void CreateQueries();
   void CollectTimestamps();
   void DiffuseBitonicSort();
+  void CreateHash();
   void UpdateSPH();
+  void UpdateDiffuse();
 
   const Settings &m_settings;
   UINT m_num_particles;
@@ -97,16 +99,21 @@ private:
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
   ComPtr<ID3D11ComputeShader> m_pSpawnDiffuseCS;
   ComPtr<ID3D11ComputeShader> m_pAdvectDiffuseCS;
+  ComPtr<ID3D11ComputeShader> m_pDeleteDiffuseCS;
   ComPtr<ID3D11ComputeShader> m_pPotentialsCS;
   ComPtr<ID3D11ComputeShader> m_pBitonicSortCS;
   ComPtr<ID3D11ComputeShader> m_pTransposeCS;
 
   ComPtr<ID3D11Query> m_pQueryDisjoint;
   ComPtr<ID3D11Query> m_pQuerySphStart;
+  ComPtr<ID3D11Query> m_pQuerySphEnd;
   ComPtr<ID3D11Query> m_pQuerySphClear;
   ComPtr<ID3D11Query> m_pQuerySphHash;
-  ComPtr<ID3D11Query> m_pQuerySphSort;
-  ComPtr<ID3D11Query> m_pQuerySphSortStart;
+  ComPtr<ID3D11Query> m_pQueryDiffuseStart;
+  ComPtr<ID3D11Query> m_pQueryDiffusePotentials;
+  ComPtr<ID3D11Query> m_pQueryDiffuseSpawn;
+  ComPtr<ID3D11Query> m_pQueryDiffuseAdvect;
+  ComPtr<ID3D11Query> m_pQueryDiffuseDelete;
   ComPtr<ID3D11Query> m_pQuerySphPrefix;
   ComPtr<ID3D11Query> m_pQuerySphDensity;
   ComPtr<ID3D11Query> m_pQuerySphPressure;
@@ -122,7 +129,14 @@ private:
   float m_sphForcesTime;
   float m_sphPositionsTime;
   float m_sphOverallTime;
-  float m_sortTime;
+  float m_sphSum;
+  float m_marchingSum;
+  float m_diffuseSum;
+
+  float m_diffusePotentialsTime;
+  float m_diffuseSpawnTime;
+  float m_diffuseAdvectTime;
+
   UINT m_frameNum;
 
   struct SortCB {

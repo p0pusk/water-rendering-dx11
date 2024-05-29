@@ -23,9 +23,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
         for (uint c = 0; c < entriesNum; ++c) {
           index = entries[startIdx + c];
           d = distance(particles[index].position, position);
-          if (d < h) {
-            density += mass * W(d, h);
-          }
+          density += mass * W(d, h);
         }
       }
     }

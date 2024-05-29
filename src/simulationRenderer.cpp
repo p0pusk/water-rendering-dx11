@@ -409,7 +409,7 @@ void SimRenderer::Update(float dt) {
   } else {
     try {
       m_sphGpuAlgo.Update();
-    } catch (const std::exception &e) {
+    } catch (std::exception &e) {
       std::cerr << "Sph GPU Update failed!" << std::endl;
       std::cerr << "  " << e.what() << std::endl;
     }
@@ -505,13 +505,13 @@ void SimRenderer::Update(float dt) {
   }
 }
 
-void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
+void SimRenderer::Render(Vector4 cameraPos, ID3D11Buffer *pSceneBuffer) {
   ImGui::Begin("Simulation");
+  if (m_settings.diffuseEnabled) {
+    RenderDiffuse(pSceneBuffer);
+  }
   if (m_settings.marching) {
-    RenderMarching(pSceneBuffer);
-    if (m_settings.diffuseEnabled) {
-      RenderDiffuse(pSceneBuffer);
-    }
+    RenderMarching(cameraPos, pSceneBuffer);
   } else {
     RenderSpheres(pSceneBuffer);
   }
@@ -521,7 +521,8 @@ void SimRenderer::Render(ID3D11Buffer *pSceneBuffer) {
   ImGui::End();
 }
 
-void SimRenderer::RenderMarching(ID3D11Buffer *pSceneBuffer) {
+void SimRenderer::RenderMarching(Vector4 cameraPos,
+                                 ID3D11Buffer *pSceneBuffer) {
   auto dxResources = DeviceResources::getInstance();
 
   auto pContext = dxResources.m_pDeviceContext;
@@ -644,6 +645,7 @@ void SimRenderer::CollectTimestamps() {
                    float(tsDisjoint.Frequency) * 1000.0f;
   m_marchingMain = float(tsMarchingMain - tsMarchingPreproc) /
                    float(tsDisjoint.Frequency) * 1000.0f;
+  m_marchingSum += m_marchingPrep + m_marchingMain;
 }
 
 void SimRenderer::ImGuiRender() {
@@ -655,5 +657,6 @@ void SimRenderer::ImGuiRender() {
       ImGuiTreeNodeFlags_DefaultOpen) {
     ImGui::Text("Preprocess time: %.3f ms", m_marchingPrep);
     ImGui::Text("Main time: %.3f ms", m_marchingMain);
+    ImGui::Text("Avg time: %.3f ms", m_marchingSum / m_frameNum);
   }
 }

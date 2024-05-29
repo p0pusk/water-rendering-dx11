@@ -26,6 +26,17 @@ struct Particle {
   float3 normal;
 };
 
+struct PBParticle {
+  float3 position;
+  float3 velocity;
+  float3 force;
+  float3 predictedPosition;
+  float3 deltaP;
+  float lambda;
+  float density;
+  float mass;
+};
+
 struct Potential {
   float waveCrest;
   float trappedAir;
@@ -40,6 +51,7 @@ struct DiffuseParticle {
   uint type;
   uint origin;
   float lifetime;
+  uint neighbours;
 };
 
 struct SurfaceBuffer {

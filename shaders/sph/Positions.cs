@@ -56,7 +56,7 @@ static const float period = 4.f;
 static const float delay = 4.f;
 
 void ForceBoundary(in uint index) {
-    float3 padding = float3(5, 5, 5) * marchingWidth;
+    float3 padding = float3(10, 10, 10) * marchingWidth;
     float boundaryRepulsion = 100 * 4000;
     float movingPadding = boundaryLen.x * 0.33 * 0.5 * (-cos(2 * PI * max(state[0].time - delay, 0) / period ) + 1);
 

@@ -226,6 +226,10 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     DX::CompileAndCreateShader(
         L"shaders/sph/AdvectDiffuse.cs",
         (ID3D11DeviceChild **)m_pAdvectDiffuseCS.GetAddressOf());
+
+    DX::CompileAndCreateShader(
+        L"shaders/sph/DeleteDiffuse.cs",
+        (ID3D11DeviceChild **)m_pDeleteDiffuseCS.GetAddressOf());
   } catch (...) {
     throw;
   }
@@ -254,6 +258,7 @@ void SphGpu::CreateQueries() {
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDisjoint));
   desc.Query = D3D11_QUERY_TIMESTAMP;
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphStart));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphEnd));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphClear));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash));
@@ -261,8 +266,11 @@ void SphGpu::CreateQueries() {
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPressure));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphForces));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPosition));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphSort));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphSortStart));
+
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDiffuseStart));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDiffusePotentials));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDiffuseSpawn));
+  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQueryDiffuseAdvect));
 }
 
 void SphGpu::Update() {
@@ -270,17 +278,83 @@ void SphGpu::Update() {
   pContext->Begin(m_pQueryDisjoint.Get());
   pContext->End(m_pQuerySphStart.Get());
 
-  UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
-  ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
+  try {
+    pContext->End(m_pQuerySphStart.Get());
+    CreateHash();
+    UpdateSPH();
+    pContext->End(m_pQuerySphEnd.Get());
+  } catch (...) {
+    throw;
+  }
+
+  if (m_settings.diffuseEnabled) {
+    try {
+      pContext->End(m_pQueryDiffuseStart.Get());
+      UpdateDiffuse();
+    } catch (...) {
+      throw;
+    }
+  }
+  pContext->End(m_pQueryDisjoint.Get());
+}
+
+void SphGpu::ImGuiRender() {
+  try {
+    CollectTimestamps();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
+    exit(1);
+  }
+
+  ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+  ImGui::Text("Particles number: %d", m_num_particles);
+  ImGui::Text("Diffuse particles number: %d", m_settings.diffuseNum);
+
+  if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Frame time %f ms", ImGui::GetIO().DeltaTime * 1000.f);
+    ImGui::Text("Sph pass: %.3f ms", m_sphOverallTime);
+    ImGui::Text("Sph avg: %.3f ms", m_sphSum / m_frameNum);
+    ImGui::Text("Diffuse pass: %.3f ms", m_diffusePotentialsTime +
+                                             m_diffuseAdvectTime +
+                                             m_diffusePotentialsTime);
+    ImGui::Text("Diffuse avg: %.3f ms", m_diffuseSum / m_frameNum);
+  }
+  if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
+    ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
+    ImGui::Text("Prefix time: %f ms", m_sphPrefixTime);
+    ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
+    ImGui::Text("Prefix overall time: %f ms",
+                m_sphClearTime + m_sphPrefixTime + m_sphCreateHashTime);
+    ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
+    ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
+    ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
+    ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
+  }
+
+  if (m_settings.diffuseEnabled) {
+    if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
+      ImGui::Text("Potentials time: %.3f ms", m_diffusePotentialsTime);
+      ImGui::Text("Spawn time: %.3f ms", m_diffuseSpawnTime);
+      ImGui::Text("Advect time: %.3f ms", m_diffuseAdvectTime);
+    }
+  }
+  m_frameNum++;
+}
+
+void SphGpu::CreateHash() {
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+  ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
+  ID3D11UnorderedAccessView *uavs[2] = {m_pHashBufferUAV.Get(),
+                                        m_pEntriesBufferUAV.Get()};
+
   ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+  ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
 
+  UINT groupNumber =
+      (m_num_particles + m_settings.blockSize) / m_settings.blockSize;
   {
-    ID3D11Buffer *cb[1] = {m_pSphCB.Get()};
-    ID3D11ShaderResourceView *srvs[1] = {m_pSphBufferSRV.Get()};
-    ID3D11UnorderedAccessView *uavs[2] = {m_pHashBufferUAV.Get(),
-                                          m_pEntriesBufferUAV.Get()};
 
-    pContext->CSSetConstantBuffers(0, 1, cb);
+    pContext->CSSetConstantBuffers(0, 1, m_pSphCB.GetAddressOf());
     pContext->CSSetShaderResources(0, 1, srvs);
     pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
 
@@ -290,33 +364,42 @@ void SphGpu::Update() {
 
     pContext->CSSetShader(m_pCreateHashCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphClear.Get());
-    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
-    pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
-    ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
+
     pContext->CSSetShaderResources(0, 1, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
+  }
+  pContext->End(m_pQuerySphClear.Get());
 
-    DX::ThrowIfFailed(
-        m_cScanCS.ScanCS(pContext.Get(), (INT)(m_settings.TABLE_SIZE + 1),
-                         m_pHashBufferSRV.Get(), m_pHashBufferUAV.Get(),
-                         m_pScanHelperBufferSRV.Get(),
-                         m_pScanHelperBufferUAV.Get()),
-        "Failed in scan");
-    pContext->CSSetConstantBuffers(0, 1, cb);
+  DX::ThrowIfFailed(
+      m_cScanCS.ScanCS(pContext.Get(), (INT)(m_settings.TABLE_SIZE + 1),
+                       m_pHashBufferSRV.Get(), m_pHashBufferUAV.Get(),
+                       m_pScanHelperBufferSRV.Get(),
+                       m_pScanHelperBufferUAV.Get()),
+      "Failed in scan");
+  pContext->End(m_pQuerySphPrefix.Get());
+
+  {
+    pContext->CSSetConstantBuffers(0, 1, m_pSphCB.GetAddressOf());
     pContext->CSSetShaderResources(0, 1, srvs);
-    pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
-    pContext->End(m_pQuerySphPrefix.Get());
-
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+
     pContext->CSSetShader(m_pCreateEntriesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
 
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
     pContext->CSSetShaderResources(0, 1, nsrvs);
   }
-  pContext->End(m_pQuerySphHash.Get());
 
-  {
+  pContext->End(m_pQuerySphHash.Get());
+}
+
+void SphGpu::UpdateSPH() {
+  try {
+
+    auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+
+    UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
+
     ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
                                          m_pEntriesBufferSRV.Get()};
     ID3D11UnorderedAccessView *uavs[2] = {m_pSphBufferUAV.Get(),
@@ -344,171 +427,94 @@ void SphGpu::Update() {
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphPosition.Get());
 
+    ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
+    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+
     pContext->CSSetShaderResources(0, 2, nsrvs);
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+  } catch (...) {
+    throw;
   }
-  pContext->End(m_pQuerySphSortStart.Get());
-  // DiffuseSort();
-  pContext->End(m_pQuerySphSort.Get());
-
-  if (m_settings.diffuseEnabled) {
-    {
-      ID3D11ShaderResourceView *srvs[3] = {m_pHashBufferSRV.Get(),
-                                           m_pEntriesBufferSRV.Get(),
-                                           m_pSphBufferSRV.Get()};
-      ID3D11UnorderedAccessView *uavs[1] = {m_pPotentialsUAV.Get()};
-
-      pContext->CSSetShaderResources(0, 3, srvs);
-      pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
-      pContext->CSSetShader(m_pPotentialsCS.Get(), nullptr, 0);
-      pContext->Dispatch(groupNumber, 1, 1);
-
-      pContext->CSSetShaderResources(0, 3, nsrvs);
-      pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
-    }
-
-    {
-      ID3D11ShaderResourceView *srvs[2] = {m_pSphBufferSRV.Get(),
-                                           m_pPotentialsSRV.Get()};
-      ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
-                                            m_pStateUAV.Get()};
-      pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
-      pContext->CSSetShaderResources(0, 2, srvs);
-      pContext->CSSetShader(m_pSpawnDiffuseCS.Get(), nullptr, 0);
-      pContext->Dispatch(groupNumber, 1, 1);
-
-      pContext->CSSetShaderResources(0, 2, nsrvs);
-      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
-    }
-
-    {
-      ID3D11ShaderResourceView *srvsAdvect[3] = {m_pHashBufferSRV.Get(),
-                                                 m_pEntriesBufferSRV.Get(),
-                                                 m_pSphBufferSRV.Get()};
-      ID3D11UnorderedAccessView *uavsAdvect[2] = {m_pDiffuseBufferUAV1.Get(),
-                                                  m_pStateUAV.Get()};
-      pContext->CSSetShader(m_pAdvectDiffuseCS.Get(), nullptr, 0);
-      pContext->CSSetUnorderedAccessViews(0, 2, uavsAdvect, nullptr);
-      pContext->CSSetShaderResources(0, 3, srvsAdvect);
-      pContext->Dispatch(m_settings.diffuseNum / m_settings.blockSize, 1, 1);
-
-      pContext->CSSetShaderResources(0, 3, nsrvs);
-      pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
-    }
-  }
-
-  pContext->End(m_pQueryDisjoint.Get());
 }
 
-void SphGpu::CollectTimestamps() {
+void SphGpu::UpdateDiffuse() {
   auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-
-  while (pContext->GetData(m_pQueryDisjoint.Get(), nullptr, 0, 0) == S_FALSE)
-    ;
-  // Check whether timestamps were disjoint during the last frame
-  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
-  pContext->GetData(m_pQueryDisjoint.Get(), &tsDisjoint,
-                    sizeof(D3D11_QUERY_DATA_TIMESTAMP_DISJOINT), 0);
-
-  if (tsDisjoint.Disjoint) {
-    return;
-  }
-
-  // Get all the timestamps
-  UINT64 tsSphStart = 0, tsSphPrefix = 0, tsSphClear = 0, tsSphHash = 0,
-         tsSphDensity = 0, tsSphPressure = 0, tsSphForces = 0,
-         tsSphPositions = 0, tsSortStart, tsSortEnd;
-
-  DX::ThrowIfFailed(
-      pContext->GetData(m_pQuerySphStart.Get(), &tsSphStart, sizeof(UINT64), 0),
-      "Failed in GetData() SphStart");
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPrefix.Get(), &tsSphPrefix,
-                                      sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(
-      pContext->GetData(m_pQuerySphClear.Get(), &tsSphClear, sizeof(UINT64), 0),
-      "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(
-      pContext->GetData(m_pQuerySphHash.Get(), &tsSphHash, sizeof(UINT64), 0),
-      "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphDensity.Get(), &tsSphDensity,
-                                      sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPressure.Get(), &tsSphPressure,
-                                      sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphForces.Get(), &tsSphForces,
-                                      sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPosition.Get(),
-                                      &tsSphPositions, sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphSortStart.Get(), &tsSortStart,
-                                      sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(
-      pContext->GetData(m_pQuerySphSort.Get(), &tsSortEnd, sizeof(UINT64), 0),
-      "Failed in GetData sphPrefix");
-
-  // Convert to real time
-  m_sphClearTime =
-      float(tsSphClear - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphPrefixTime =
-      float(tsSphPrefix - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphCreateHashTime =
-      float(tsSphHash - tsSphPrefix) / float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphDensityTime =
-      float(tsSphDensity - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
-                      float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphForcesTime = float(tsSphForces - tsSphPressure) /
-                    float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
-                       float(tsDisjoint.Frequency) * 1000.0f;
-  m_sortTime =
-      float(tsSortEnd - tsSortStart) / float(tsDisjoint.Frequency) * 1000.0f;
-
-  m_sphOverallTime = m_sphPrefixTime + m_sphClearTime + m_sphCreateHashTime +
-                     m_sphDensityTime + m_sphPressureTime + m_sphForcesTime +
-                     m_sphPositionsTime;
-}
-
-void SphGpu::ImGuiRender() {
-  try {
-    CollectTimestamps();
-  } catch (std::exception &e) {
-    std::cerr << e.what() << std::endl;
-    exit(1);
-  }
-
-  ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
-  ImGui::Text("Particles number: %d", m_num_particles);
-
-  if (ImGui::CollapsingHeader("Time"), ImGuiTreeNodeFlags_DefaultOpen) {
-    ImGui::Text("Frame time %f ms", ImGui::GetIO().DeltaTime * 1000.f);
-    ImGui::Text("Sph pass: %.3f ms", m_sphOverallTime);
-  }
-  if (ImGui::CollapsingHeader("SPH"), ImGuiTreeNodeFlags_DefaultOpen) {
-    ImGui::Text("Clear time: %.3f ms", m_sphClearTime);
-    ImGui::Text("Prefix time: %f ms", m_sphPrefixTime);
-    ImGui::Text("Hash time: %.3f ms", m_sphCreateHashTime);
-    ImGui::Text("Prefix overall time: %f ms",
-                m_sphClearTime + m_sphPrefixTime + m_sphCreateHashTime);
-    ImGui::Text("Sort time: %.3f ms", m_sortTime);
-    ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
-    ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
-    ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
-    ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
-  }
-  m_frameNum++;
-}
-
-void SphGpu::UpdateSPH() {
-  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
-  pContext->End(m_pQuerySphStart.Get());
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
+  try {
+    ID3D11ShaderResourceView *srvs[3] = {m_pHashBufferSRV.Get(),
+                                         m_pEntriesBufferSRV.Get(),
+                                         m_pSphBufferSRV.Get()};
+    ID3D11UnorderedAccessView *uavs[1] = {m_pPotentialsUAV.Get()};
+
+    pContext->CSSetShaderResources(0, 3, srvs);
+    pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
+    pContext->CSSetShader(m_pPotentialsCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+
+    ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
+    ID3D11UnorderedAccessView *nuavs[1] = {nullptr};
+    pContext->CSSetShaderResources(0, 3, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
+  } catch (...) {
+    throw;
+  }
+
+  pContext->End(m_pQueryDiffusePotentials.Get());
+
+  try {
+    ID3D11ShaderResourceView *srvs[2] = {m_pSphBufferSRV.Get(),
+                                         m_pPotentialsSRV.Get()};
+    ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
+                                          m_pStateUAV.Get()};
+    pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+    pContext->CSSetShaderResources(0, 2, srvs);
+    pContext->CSSetShader(m_pSpawnDiffuseCS.Get(), nullptr, 0);
+    pContext->Dispatch(groupNumber, 1, 1);
+
+    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+    ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
+    pContext->CSSetShaderResources(0, 2, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+  } catch (...) {
+    throw;
+  }
+
+  pContext->End(m_pQueryDiffuseSpawn.Get());
+
+  try {
+    ID3D11ShaderResourceView *srvs[3] = {m_pHashBufferSRV.Get(),
+                                         m_pEntriesBufferSRV.Get(),
+                                         m_pSphBufferSRV.Get()};
+    ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
+                                          m_pStateUAV.Get()};
+    pContext->CSSetShader(m_pAdvectDiffuseCS.Get(), nullptr, 0);
+    pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+    pContext->CSSetShaderResources(0, 3, srvs);
+    pContext->Dispatch(m_settings.diffuseNum / m_settings.blockSize, 1, 1);
+
+    ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
+    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+    pContext->CSSetShaderResources(0, 3, nsrvs);
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+  } catch (...) {
+    throw;
+  }
+
+  pContext->End(m_pQueryDiffuseAdvect.Get());
+
+  try {
+    ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
+                                          m_pStateUAV.Get()};
+    pContext->CSSetShader(m_pDeleteDiffuseCS.Get(), nullptr, 0);
+    pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+    pContext->Dispatch(m_settings.diffuseNum / m_settings.blockSize, 1, 1);
+
+    ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
+    pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+  } catch (...) {
+    throw;
+  }
 }
 
 void SphGpu::DiffuseBitonicSort() {
@@ -573,5 +579,100 @@ void SphGpu::DiffuseBitonicSort() {
     // Sort the row data
     pContext->CSSetShader(m_pBitonicSortCS.Get(), nullptr, 0);
     pContext->Dispatch(NUM_ELEMENTS / BITONIC_BLOCK_SIZE, 1, 1);
+  }
+}
+
+void SphGpu::CollectTimestamps() {
+  auto pContext = DeviceResources::getInstance().m_pDeviceContext;
+
+  while (pContext->GetData(m_pQueryDisjoint.Get(), nullptr, 0, 0) == S_FALSE)
+    ;
+  // Check whether timestamps were disjoint during the last frame
+  D3D11_QUERY_DATA_TIMESTAMP_DISJOINT tsDisjoint;
+  pContext->GetData(m_pQueryDisjoint.Get(), &tsDisjoint,
+                    sizeof(D3D11_QUERY_DATA_TIMESTAMP_DISJOINT), 0);
+
+  if (tsDisjoint.Disjoint) {
+    return;
+  }
+
+  // Get all the timestamps
+  UINT64 tsSphStart = 0, tsSphPrefix = 0, tsSphClear = 0, tsSphHash = 0,
+         tsSphDensity = 0, tsSphPressure = 0, tsSphForces = 0,
+         tsSphPositions = 0;
+
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphStart.Get(), &tsSphStart, sizeof(UINT64), 0),
+      "Failed in GetData() SphStart");
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphClear.Get(), &tsSphClear, sizeof(UINT64), 0),
+      "Failed in GetData Clear");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPrefix.Get(), &tsSphPrefix,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphHash.Get(), &tsSphHash, sizeof(UINT64), 0),
+      "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphDensity.Get(), &tsSphDensity,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPressure.Get(), &tsSphPressure,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphForces.Get(), &tsSphForces,
+                                      sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPosition.Get(),
+                                      &tsSphPositions, sizeof(UINT64), 0),
+                    "Failed in GetData sphPrefix");
+
+  UINT64 tsSphEnd;
+  DX::ThrowIfFailed(
+      pContext->GetData(m_pQuerySphEnd.Get(), &tsSphEnd, sizeof(UINT64), 0),
+      "Failed in GetData sphPrefix");
+
+  // Convert to real time
+  m_sphClearTime =
+      float(tsSphClear - tsSphStart) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPrefixTime =
+      float(tsSphPrefix - tsSphClear) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphCreateHashTime =
+      float(tsSphHash - tsSphPrefix) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphDensityTime =
+      float(tsSphDensity - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
+                      float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphForcesTime = float(tsSphForces - tsSphPressure) /
+                    float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
+                       float(tsDisjoint.Frequency) * 1000.0f;
+
+  m_sphOverallTime = m_sphPrefixTime + m_sphClearTime + m_sphCreateHashTime +
+                     m_sphDensityTime + m_sphPressureTime + m_sphForcesTime +
+                     m_sphPositionsTime;
+  m_sphSum += m_sphOverallTime;
+
+  if (m_settings.diffuseEnabled) {
+
+    UINT64 tsDiffuseStart, tsDiffuseSpawn, tsDiffusePotentials, tsDiffuseAdvect;
+
+    DX::ThrowIfFailed(pContext->GetData(m_pQueryDiffuseStart.Get(),
+                                        &tsDiffuseStart, sizeof(UINT64), 0),
+                      "Failed in GetData sphPrefix");
+    DX::ThrowIfFailed(pContext->GetData(m_pQueryDiffusePotentials.Get(),
+                                        &tsDiffusePotentials, sizeof(UINT64),
+                                        0));
+    DX::ThrowIfFailed(pContext->GetData(m_pQueryDiffuseSpawn.Get(),
+                                        &tsDiffuseSpawn, sizeof(UINT64), 0));
+    DX::ThrowIfFailed(pContext->GetData(m_pQueryDiffuseAdvect.Get(),
+                                        &tsDiffuseAdvect, sizeof(UINT64), 0));
+    m_diffusePotentialsTime = float(tsDiffusePotentials - tsDiffuseStart) /
+                              float(tsDisjoint.Frequency) * 1000.0f;
+    m_diffuseSpawnTime = float(tsDiffuseSpawn - tsDiffusePotentials) /
+                         float(tsDisjoint.Frequency) * 1000.0f;
+    m_diffuseAdvectTime = float(tsDiffuseAdvect - tsDiffuseSpawn) /
+                          float(tsDisjoint.Frequency) * 1000.0f;
+    m_diffuseSum +=
+        m_diffuseAdvectTime + m_diffuseSpawnTime + m_diffusePotentialsTime;
   }
 }

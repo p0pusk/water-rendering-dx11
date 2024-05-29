@@ -10,7 +10,7 @@ RWStructuredBuffer<float> inputMatrix : register(u0);
 RWStructuredBuffer<float> outputMatrix : register(u1);
 
 float gaussian(float x, float y, float z, float sigma) {
-    return exp(-(x * x + y * y + z * z) / (2 * sigma * sigma)) / (2 * PI * sigma * sigma);
+    return exp(-(x * x + y * y + z * z) / (2 * sigma * sigma)) / sqrt(2 * PI * sigma * sigma);
 }
 
 [numthreads(BLOCK_SIZE, 1, 1)]

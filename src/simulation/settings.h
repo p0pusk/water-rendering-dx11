@@ -5,7 +5,7 @@
 
 struct Settings {
   Vector3 worldOffset = Vector3(-8.f, 0.3f, -8.f);
-  XMINT3 initCube = XMINT3(64, 64, 128);
+  XMINT3 initCube = XMINT3(128, 32, 128);
   float h = 0.1f;
   Vector3 initLocalPos = Vector3(1.f, 1.f, 1.f);
   XMINT3 marchingResolution = XMINT3(256, 256, 256);
@@ -21,7 +21,7 @@ struct Settings {
   Vector2 wavecrestThreshold = Vector2(1, 8);
   Vector2 energyThreshold = Vector2(2, 50);
   UINT blockSize = 1024;
-  UINT diffuseNum = 256 * 1024;
+  UINT diffuseNum = 1024 * 1024;
   bool cpu = false;
   bool diffuseEnabled = true;
   bool marching = true;

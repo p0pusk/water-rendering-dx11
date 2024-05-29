@@ -3,6 +3,7 @@
 #include <SimpleMath.h>
 
 using namespace DirectX::SimpleMath;
+using namespace DirectX;
 
 struct Particle {
   Vector3 position;
@@ -12,6 +13,17 @@ struct Particle {
   Vector3 velocity;
   UINT hash;
   Vector3 normal;
+};
+
+struct PBParticle {
+  XMFLOAT3 position;
+  XMFLOAT3 velocity;
+  XMFLOAT3 force;
+  XMFLOAT3 predictedPosition;
+  XMFLOAT3 deltaP;
+  float lambda;
+  float density;
+  float mass;
 };
 
 struct Potential {
@@ -28,4 +40,5 @@ struct DiffuseParticle {
   UINT type;
   UINT origin;
   float lifetime;
+  UINT neighbours;
 };

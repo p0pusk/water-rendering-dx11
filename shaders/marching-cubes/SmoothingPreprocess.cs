@@ -28,13 +28,13 @@ void cs(uint3 DTid : SV_DispatchThreadID)
     for (i = -1; i <= 1; ++i) {
       for (j = -1; j <= 1; ++j) {
         for (k = -1; k <= 1; ++k) {
-          key = GetHash(GetCell(globalPos + float3(i, j, k) * h));
+          key = GetHash(GetCell(globalPos + float3(i, j, k) * marchingWidth / 2));
           startIdx = hash[key];
           entriesNum = hash[key + 1] - startIdx;
           for (uint c = 0; c < entriesNum; ++c) {
             idx = entries[startIdx + c];
             d = distance(particles[idx].position, globalPos);
-            if (d < h) {
+            if (d < length(marchingWidth / 2)) {
               sum++;
             }
           }

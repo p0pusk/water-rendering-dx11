@@ -237,7 +237,7 @@ bool Renderer::Update() {
     m_sceneBuffer.lights[0].color = Vector4(0.7, 0.7, 0.7, 1);
     m_sceneBuffer.lights[1].pos = Vector4(-18, 20, 18, 0);
     m_sceneBuffer.lights[1].color = Vector4(0.7, 0.7, 0.7, 1);
-    m_sceneBuffer.lights[2].pos = Vector4(18, 20, 0, 0);
+    m_sceneBuffer.lights[2].pos = Vector4(18, 20, 1, 0);
     m_sceneBuffer.lights[2].color = Vector4(0.7, 0.7, 0.7, 1);
     m_sceneBuffer.lightCount.x = 3;
     m_sceneBuffer.ambientColor = Vector4(0.5f, 0.5f, 0.5f, 1);
@@ -297,7 +297,7 @@ bool Renderer::Render() {
   // m_pWater->Render(m_pSceneBuffer);
   // m_pTerrain->Render(m_pSceneBuffer.Get());
   // m_pMiku->Render(m_pSceneBuffer.Get());
-  m_pSimulationRenderer->Render(m_pSceneBuffer.Get());
+  m_pSimulationRenderer->Render(m_sceneBuffer.cameraPos, m_pSceneBuffer.Get());
 
   ImGui::Render();
   ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());

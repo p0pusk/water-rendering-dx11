@@ -1,4 +1,4 @@
-#include "terrain.h"
+#include "terrain.h" terra
 
 #include "VertexTypes.h"
 #include "WICTextureLoader.h"
@@ -41,7 +41,7 @@ void Terrain::Init() {
                    XMMatrixTranslation(0.0, 0, 0.0);
     geomBuffer.norm = XMMatrixInverse(nullptr, XMMatrixTranspose(geomBuffer.m));
     geomBuffer.shines = Vector4(100, 0, 0, 0);
-    geomBuffer.color = Vector4(1, 1, 1, 1);
+    geomBuffer.color = Vector4(0.1, 0.1, 0.1, 1);
 
     D3D11_SUBRESOURCE_DATA data;
     data.pSysMem = &geomBuffer;
