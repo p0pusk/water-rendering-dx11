@@ -94,7 +94,6 @@ private:
   ComPtr<ID3D11ComputeShader> m_pPrefixSumCS;
   ComPtr<ID3D11ComputeShader> m_pCreateEntriesCS;
   ComPtr<ID3D11ComputeShader> m_pDensityCS;
-  ComPtr<ID3D11ComputeShader> m_pPressureCS;
   ComPtr<ID3D11ComputeShader> m_pForcesCS;
   ComPtr<ID3D11ComputeShader> m_pPositionsCS;
   ComPtr<ID3D11ComputeShader> m_pSpawnDiffuseCS;
@@ -116,7 +115,6 @@ private:
   ComPtr<ID3D11Query> m_pQueryDiffuseDelete;
   ComPtr<ID3D11Query> m_pQuerySphPrefix;
   ComPtr<ID3D11Query> m_pQuerySphDensity;
-  ComPtr<ID3D11Query> m_pQuerySphPressure;
   ComPtr<ID3D11Query> m_pQuerySphForces;
   ComPtr<ID3D11Query> m_pQuerySphPosition;
 
@@ -125,7 +123,6 @@ private:
   float m_sphClearTime;
   float m_sphCreateHashTime;
   float m_sphDensityTime;
-  float m_sphPressureTime;
   float m_sphForcesTime;
   float m_sphPositionsTime;
   float m_sphOverallTime;

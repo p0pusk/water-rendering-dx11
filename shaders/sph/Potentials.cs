@@ -1,8 +1,7 @@
 #include "../Sph.hlsli"
 
 StructuredBuffer<uint> hash : register(t0);
-StructuredBuffer<uint> entries : register(t1);
-StructuredBuffer<Particle> particles : register(t2);
+StructuredBuffer<Particle> particles : register(t1);
 RWStructuredBuffer<Potential> potentials : register(u0);
 
 [numthreads(BLOCK_SIZE, 1, 1)]
@@ -12,7 +11,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
   int i, j, k;
   float3 localPos, dir;
   float d;
-  uint key, startIdx, entriesNum, index, c;
+  uint key, startIdx, entriesNum, c;
   float velocityDiff = 0.f;
   float curvature = potentials[DTid.x].curvature;
 
@@ -27,18 +26,20 @@ void cs(uint3 DTid : SV_DispatchThreadID)
         startIdx = hash[key];
         entriesNum = hash[key + 1] - startIdx;
         for (c = 0; c < entriesNum; ++c) {
-          index = entries[startIdx + c];
-          d = distance(position, particles[index].position);
-          dir = normalize(position - particles[index].position);
+          d = distance(position, particles[startIdx + c].position);
+          dir = normalize(position - particles[startIdx + c].position);
           if (d == 0.f) {
             dir = float3(0, 0, 0);
           }
 
-          if (d < h && index != DTid.x) {
-            float3 v_ij = velocity - particles[index].velocity;
+          if (d < h && startIdx + c != DTid.x) {
+            float3 v_ij = velocity - particles[startIdx + c].velocity;
             float lengthV = length(v_ij);
             if (lengthV != 0 && d != 0) {
-              velocityDiff += lengthV * (1 - dot(normalize(v_ij), normalize(position - particles[index].position))) * (1 - d / h);
+              velocityDiff += lengthV * (1 - dot(normalize(v_ij),
+                                                 normalize(position -
+                                                           particles[startIdx +
+                                                           c].position))) * (1 - d / h);
             }
           }
         }

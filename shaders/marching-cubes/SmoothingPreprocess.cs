@@ -2,7 +2,6 @@
 
 StructuredBuffer<Particle> particles : register(t0);
 StructuredBuffer<uint> hash : register(t1);
-StructuredBuffer<uint> entries : register(t2);
 
 RWStructuredBuffer<float> voxel_grid : register(u0);
 RWStructuredBuffer<SurfaceBuffer> surfaceBuffer : register(u1);
@@ -32,8 +31,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
           startIdx = hash[key];
           entriesNum = hash[key + 1] - startIdx;
           for (uint c = 0; c < entriesNum; ++c) {
-            idx = entries[startIdx + c];
-            d = distance(particles[idx].position, globalPos);
+            d = distance(particles[startIdx + c].position, globalPos);
             if (d < length(marchingWidth / 2)) {
               sum++;
             }

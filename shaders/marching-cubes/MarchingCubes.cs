@@ -57,7 +57,10 @@ Triangulation get_triangulations(in uint x, in uint y, in uint z)
     idx |= (uint) !(voxel_get(x + 1, y + 1, z + 1) > g_c) << 6;
     idx |= (uint) !(voxel_get(x + 1, y + 1, z) > g_c) << 7;
 
-    return TRIANGULATIONS[idx];
+  Triangulation result;
+  result.data = TRIANGULATIONS[idx];
+
+    return result;
 }
 
 float3 get_gradient(in uint3 pos) {
@@ -108,7 +111,8 @@ struct Vertex {
 
 Vertex get_point(in uint edge_index, in uint3 pos)
 {
-    Edges point_indecies = EDGES_TABLE[edge_index];
+    Edges point_indecies;
+    point_indecies.data = EDGES_TABLE[edge_index];
     uint3 p1 = POINTS_TABLE[point_indecies.data[0]];
     uint3 p2 = POINTS_TABLE[point_indecies.data[1]];
 

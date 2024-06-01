@@ -152,9 +152,9 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
 
   try {
     // create Entries buffer
-    DX::CreateStructuredBuffer<UINT>(m_num_particles, D3D11_USAGE_DEFAULT, 0,
-                                     nullptr, "EntriesBuffer",
-                                     &m_pEntriesBuffer);
+    DX::CreateStructuredBuffer<Particle>(m_num_particles, D3D11_USAGE_DEFAULT,
+                                         0, nullptr, "EntriesBuffer",
+                                         &m_pEntriesBuffer);
 
     // create Hash UAV
     DX::CreateBufferUAV(m_pEntriesBuffer.Get(), m_num_particles,
@@ -192,10 +192,6 @@ void SphGpu::Init(const std::vector<Particle> &particles) {
     DX::CompileAndCreateShader(
         L"shaders/sph/Density.cs",
         (ID3D11DeviceChild **)m_pDensityCS.GetAddressOf());
-
-    DX::CompileAndCreateShader(
-        L"shaders/sph/Pressure.cs",
-        (ID3D11DeviceChild **)m_pPressureCS.GetAddressOf());
 
     DX::CompileAndCreateShader(
         L"shaders/sph/Forces.cs",
@@ -263,7 +259,6 @@ void SphGpu::CreateQueries() {
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPrefix));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphHash));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphDensity));
-  DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPressure));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphForces));
   DX::ThrowIfFailed(pDevice->CreateQuery(&desc, &m_pQuerySphPosition));
 
@@ -326,7 +321,6 @@ void SphGpu::ImGuiRender() {
     ImGui::Text("Prefix overall time: %f ms",
                 m_sphClearTime + m_sphPrefixTime + m_sphCreateHashTime);
     ImGui::Text("Density time: %.3f ms", m_sphDensityTime);
-    ImGui::Text("Pressure time: %.3f ms", m_sphPressureTime);
     ImGui::Text("Forces time: %.3f ms", m_sphForcesTime);
     ImGui::Text("Positions time: %.3f ms", m_sphPositionsTime);
   }
@@ -400,24 +394,22 @@ void SphGpu::UpdateSPH() {
 
     UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
 
-    ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
-                                         m_pEntriesBufferSRV.Get()};
-    ID3D11UnorderedAccessView *uavs[2] = {m_pSphBufferUAV.Get(),
+    ID3D11ShaderResourceView *srvs[1] = {m_pHashBufferSRV.Get()};
+
+    ID3D11UnorderedAccessView *uavs[2] = {m_pEntriesBufferUAV.Get(),
                                           m_pStateUAV.Get()};
 
-    pContext->CSSetShaderResources(0, 2, srvs);
+    pContext->CSSetShaderResources(0, 1, srvs);
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
 
     pContext->CSSetShader(m_pDensityCS.Get(), nullptr, 0);
-    pContext->Dispatch(groupNumber, 1, 1);
+    pContext->Dispatch((27 * m_num_particles + m_settings.blockSize) /
+                           m_settings.blockSize,
+                       1, 1);
     pContext->End(m_pQuerySphDensity.Get());
 
-    pContext->CSSetShader(m_pPressureCS.Get(), nullptr, 0);
-    pContext->Dispatch(groupNumber, 1, 1);
-    pContext->End(m_pQuerySphPressure.Get());
-
-    ID3D11UnorderedAccessView *uavsForce[1] = {m_pPotentialsUAV.Get()};
-    pContext->CSSetUnorderedAccessViews(1, 1, uavsForce, nullptr);
+    pContext->CSSetUnorderedAccessViews(1, 1, m_pPotentialsUAV.GetAddressOf(),
+                                        nullptr);
     pContext->CSSetShader(m_pForcesCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphForces.Get());
@@ -427,11 +419,13 @@ void SphGpu::UpdateSPH() {
     pContext->Dispatch(groupNumber, 1, 1);
     pContext->End(m_pQuerySphPosition.Get());
 
-    ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
+    ID3D11ShaderResourceView *nsrvs[1] = {nullptr};
     ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
 
-    pContext->CSSetShaderResources(0, 2, nsrvs);
+    pContext->CSSetShaderResources(0, 1, nsrvs);
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
+
+    pContext->CopyResource(m_pSphDataBuffer.Get(), m_pEntriesBuffer.Get());
   } catch (...) {
     throw;
   }
@@ -442,19 +436,18 @@ void SphGpu::UpdateDiffuse() {
 
   UINT groupNumber = DivUp(m_num_particles, m_settings.blockSize);
   try {
-    ID3D11ShaderResourceView *srvs[3] = {m_pHashBufferSRV.Get(),
-                                         m_pEntriesBufferSRV.Get(),
-                                         m_pSphBufferSRV.Get()};
+    ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
+                                         m_pEntriesBufferSRV.Get()};
     ID3D11UnorderedAccessView *uavs[1] = {m_pPotentialsUAV.Get()};
 
-    pContext->CSSetShaderResources(0, 3, srvs);
+    pContext->CSSetShaderResources(0, 2, srvs);
     pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
     pContext->CSSetShader(m_pPotentialsCS.Get(), nullptr, 0);
     pContext->Dispatch(groupNumber, 1, 1);
 
     ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
     ID3D11UnorderedAccessView *nuavs[1] = {nullptr};
-    pContext->CSSetShaderResources(0, 3, nsrvs);
+    pContext->CSSetShaderResources(0, 2, nsrvs);
     pContext->CSSetUnorderedAccessViews(0, 1, nuavs, nullptr);
   } catch (...) {
     throw;
@@ -463,7 +456,7 @@ void SphGpu::UpdateDiffuse() {
   pContext->End(m_pQueryDiffusePotentials.Get());
 
   try {
-    ID3D11ShaderResourceView *srvs[2] = {m_pSphBufferSRV.Get(),
+    ID3D11ShaderResourceView *srvs[2] = {m_pEntriesBufferSRV.Get(),
                                          m_pPotentialsSRV.Get()};
     ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
                                           m_pStateUAV.Get()};
@@ -483,19 +476,18 @@ void SphGpu::UpdateDiffuse() {
   pContext->End(m_pQueryDiffuseSpawn.Get());
 
   try {
-    ID3D11ShaderResourceView *srvs[3] = {m_pHashBufferSRV.Get(),
-                                         m_pEntriesBufferSRV.Get(),
+    ID3D11ShaderResourceView *srvs[2] = {m_pHashBufferSRV.Get(),
                                          m_pSphBufferSRV.Get()};
     ID3D11UnorderedAccessView *uavs[2] = {m_pDiffuseBufferUAV1.Get(),
                                           m_pStateUAV.Get()};
     pContext->CSSetShader(m_pAdvectDiffuseCS.Get(), nullptr, 0);
     pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
-    pContext->CSSetShaderResources(0, 3, srvs);
+    pContext->CSSetShaderResources(0, 2, srvs);
     pContext->Dispatch(m_settings.diffuseNum / m_settings.blockSize, 1, 1);
 
-    ID3D11ShaderResourceView *nsrvs[3] = {nullptr, nullptr, nullptr};
+    ID3D11ShaderResourceView *nsrvs[2] = {nullptr, nullptr};
     ID3D11UnorderedAccessView *nuavs[2] = {nullptr, nullptr};
-    pContext->CSSetShaderResources(0, 3, nsrvs);
+    pContext->CSSetShaderResources(0, 2, nsrvs);
     pContext->CSSetUnorderedAccessViews(0, 2, nuavs, nullptr);
   } catch (...) {
     throw;
@@ -598,8 +590,7 @@ void SphGpu::CollectTimestamps() {
 
   // Get all the timestamps
   UINT64 tsSphStart = 0, tsSphPrefix = 0, tsSphClear = 0, tsSphHash = 0,
-         tsSphDensity = 0, tsSphPressure = 0, tsSphForces = 0,
-         tsSphPositions = 0;
+         tsSphDensity = 0, tsSphForces = 0, tsSphPositions = 0;
 
   DX::ThrowIfFailed(
       pContext->GetData(m_pQuerySphStart.Get(), &tsSphStart, sizeof(UINT64), 0),
@@ -614,9 +605,6 @@ void SphGpu::CollectTimestamps() {
       pContext->GetData(m_pQuerySphHash.Get(), &tsSphHash, sizeof(UINT64), 0),
       "Failed in GetData sphPrefix");
   DX::ThrowIfFailed(pContext->GetData(m_pQuerySphDensity.Get(), &tsSphDensity,
-                                      sizeof(UINT64), 0),
-                    "Failed in GetData sphPrefix");
-  DX::ThrowIfFailed(pContext->GetData(m_pQuerySphPressure.Get(), &tsSphPressure,
                                       sizeof(UINT64), 0),
                     "Failed in GetData sphPrefix");
   DX::ThrowIfFailed(pContext->GetData(m_pQuerySphForces.Get(), &tsSphForces,
@@ -640,16 +628,13 @@ void SphGpu::CollectTimestamps() {
       float(tsSphHash - tsSphPrefix) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphDensityTime =
       float(tsSphDensity - tsSphHash) / float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphPressureTime = float(tsSphPressure - tsSphDensity) /
-                      float(tsDisjoint.Frequency) * 1000.0f;
-  m_sphForcesTime = float(tsSphForces - tsSphPressure) /
-                    float(tsDisjoint.Frequency) * 1000.0f;
+  m_sphForcesTime =
+      float(tsSphForces - tsSphDensity) / float(tsDisjoint.Frequency) * 1000.0f;
   m_sphPositionsTime = float(tsSphPositions - tsSphForces) /
                        float(tsDisjoint.Frequency) * 1000.0f;
 
   m_sphOverallTime = m_sphPrefixTime + m_sphClearTime + m_sphCreateHashTime +
-                     m_sphDensityTime + m_sphPressureTime + m_sphForcesTime +
-                     m_sphPositionsTime;
+                     m_sphDensityTime + m_sphForcesTime + m_sphPositionsTime;
   m_sphSum += m_sphOverallTime;
 
   if (m_settings.diffuseEnabled) {

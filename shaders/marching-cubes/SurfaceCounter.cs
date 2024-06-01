@@ -2,7 +2,6 @@
 
 StructuredBuffer<Particle> particles : register(t0);
 StructuredBuffer<uint> hash : register(t1);
-StructuredBuffer<uint> entries : register(t2);
 
 RWStructuredBuffer<SurfaceBuffer> surfaceBuffer : register(u0);
 
@@ -27,8 +26,7 @@ void count(in uint index)
         startIdx = hash[key];
         entriesNum = hash[key + 1] - startIdx;
         for (uint c = 0; c < entriesNum; ++c) {
-          idx = entries[startIdx + c];
-          d = distance(globalPos, particles[idx].position);
+          d = distance(globalPos, particles[startIdx + c].position);
           if (d < length(marchingWidth / 2)) {
             count++;
           }

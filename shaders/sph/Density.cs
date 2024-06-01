@@ -1,7 +1,6 @@
 #include "../Sph.hlsli"
 
 StructuredBuffer<uint> hash : register(t0);
-StructuredBuffer<uint> entries : register(t1);
 RWStructuredBuffer<Particle> particles : register(u0);
 
 [numthreads(BLOCK_SIZE, 1, 1)]
@@ -9,7 +8,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
 {
   if (DTid.x >= particlesNum) return;
 
-  uint key, startIdx, entriesNum, index;
+  uint key, startIdx, entriesNum;
   float d;
   float density = 0.f;
   float3 position = particles[DTid.x].position;
@@ -21,8 +20,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
         startIdx = hash[key];
         entriesNum = hash[key + 1] - startIdx;
         for (uint c = 0; c < entriesNum; ++c) {
-          index = entries[startIdx + c];
-          d = distance(particles[index].position, position);
+          d = distance(particles[startIdx + c].position, position);
           density += mass * W(d, h);
         }
       }
@@ -30,4 +28,8 @@ void cs(uint3 DTid : SV_DispatchThreadID)
   }
 
   particles[DTid.x].density = density;
+
+  float k = 1;
+  float p0 = 1000;
+  particles[DTid.x].pressure = k * (particles[DTid.x].density - p0);
 }

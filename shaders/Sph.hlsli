@@ -24,17 +24,15 @@ struct Particle {
   float3 velocity;
   uint hash;
   float3 normal;
+  uint neighbours;
 };
 
 struct PBParticle {
   float3 position;
+  float3 predictedPos;
   float3 velocity;
-  float3 force;
-  float3 predictedPosition;
-  float3 deltaP;
+  float3 forces;
   float lambda;
-  float density;
-  float mass;
 };
 
 struct Potential {

@@ -3,7 +3,7 @@
 #define KERNEL_SIZE_X 5
 #define KERNEL_SIZE_Y 5
 #define KERNEL_SIZE_Z 5
-#define SIGMA 1.2f
+#define SIGMA 2.2f
 
 
 RWStructuredBuffer<float> inputMatrix : register(u0);

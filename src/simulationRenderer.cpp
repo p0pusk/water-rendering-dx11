@@ -426,31 +426,29 @@ void SimRenderer::Update(float dt) {
 
       if (m_frameNum == 0) {
         ID3D11UnorderedAccessView *uavs[1] = {m_pSurfaceBufferUAV.Get()};
-        ID3D11ShaderResourceView *srvs[3] = {
-            m_sphGpuAlgo.m_pSphBufferSRV.Get(),
-            m_sphGpuAlgo.m_pHashBufferSRV.Get(),
-            m_sphGpuAlgo.m_pEntriesBufferSRV.Get()};
+        ID3D11ShaderResourceView *srvs[2] = {
+            m_sphGpuAlgo.m_pEntriesBufferSRV.Get(),
+            m_sphGpuAlgo.m_pHashBufferSRV.Get()};
 
         pContext->CSSetUnorderedAccessViews(0, 1, uavs, nullptr);
-        pContext->CSSetShaderResources(0, 3, srvs);
+        pContext->CSSetShaderResources(0, 2, srvs);
         pContext->CSSetShader(m_pSurfaceCountCS.Get(), nullptr, 0);
         pContext->Dispatch(groupNumber, 1, 1);
 
         ID3D11UnorderedAccessView *uavsNULL[1] = {nullptr};
-        ID3D11ShaderResourceView *srvsNULL[3] = {nullptr, nullptr, nullptr};
+        ID3D11ShaderResourceView *srvsNULL[2] = {nullptr, nullptr};
         pContext->CSSetUnorderedAccessViews(0, 1, uavsNULL, nullptr);
-        pContext->CSSetShaderResources(0, 3, srvsNULL);
+        pContext->CSSetShaderResources(0, 2, srvsNULL);
       }
 
       {
         ID3D11UnorderedAccessView *uavs[2] = {m_pVoxelGridBufferUAV1.Get(),
                                               m_pSurfaceBufferUAV.Get()};
-        ID3D11ShaderResourceView *srvs[3] = {
-            m_sphGpuAlgo.m_pSphBufferSRV.Get(),
-            m_sphGpuAlgo.m_pHashBufferSRV.Get(),
-            m_sphGpuAlgo.m_pEntriesBufferSRV.Get()};
+        ID3D11ShaderResourceView *srvs[2] = {
+            m_sphGpuAlgo.m_pEntriesBufferSRV.Get(),
+            m_sphGpuAlgo.m_pHashBufferSRV.Get()};
 
-        pContext->CSSetShaderResources(0, 3, srvs);
+        pContext->CSSetShaderResources(0, 2, srvs);
         pContext->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
 
         pContext->CSSetShader(m_pSmoothingPreprocessCS.Get(), nullptr, 0);
@@ -459,9 +457,9 @@ void SimRenderer::Update(float dt) {
         pContext->Dispatch(groupNumber, 1, 1);
 
         ID3D11UnorderedAccessView *uavsNULL[2] = {nullptr, nullptr};
-        ID3D11ShaderResourceView *srvsNULL[3] = {nullptr, nullptr, nullptr};
+        ID3D11ShaderResourceView *srvsNULL[2] = {nullptr, nullptr};
         pContext->CSSetUnorderedAccessViews(0, 2, uavsNULL, nullptr);
-        pContext->CSSetShaderResources(0, 3, srvsNULL);
+        pContext->CSSetShaderResources(0, 2, srvsNULL);
       }
 
       {

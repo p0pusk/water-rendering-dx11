@@ -13,6 +13,7 @@ struct Particle {
   Vector3 velocity;
   UINT hash;
   Vector3 normal;
+  UINT neighbours;
 };
 
 struct PBParticle {

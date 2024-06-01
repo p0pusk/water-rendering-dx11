@@ -1,7 +1,6 @@
 #include "../Sph.hlsli"
 
 StructuredBuffer<uint> hash : register(t0);
-StructuredBuffer<uint> entries : register(t1);
 RWStructuredBuffer<Particle> particles : register(u0);
 RWStructuredBuffer<Potential> potentials : register(u1);
 
@@ -19,12 +18,12 @@ void cs(uint3 DTid : SV_DispatchThreadID)
   float3 force = float3(0.f, -9.8f * particles[DTid.x].density, 0);
   float3 viscosity = float3(0, 0, 0);
   float3 colorFieldGrad = float3(0, 0, 0);
-  float3 colorFieldLap = float3(0, 0, 0);
+  float colorFieldLap = 0;
   float3 surfaceTension = float3(0, 0, 0);
   int i, j, k;
   float3 localPos, dir;
   float d;
-  uint key, startIdx, entriesNum, index, c;
+  uint key, startIdx, entriesNum, c;
 
   float3 position = particles[DTid.x].position;
   float3 pressure = particles[DTid.x].pressure;
@@ -37,18 +36,19 @@ void cs(uint3 DTid : SV_DispatchThreadID)
         startIdx = hash[key];
         entriesNum = hash[key + 1] - startIdx;
         for (c = 0; c < entriesNum; ++c) {
-          index = entries[startIdx + c];
-          d = distance(position, particles[index].position);
-          dir = normalize(position - particles[index].position);
+          d = distance(position, particles[startIdx + c].position);
+          dir = normalize(position - particles[startIdx + c].position);
           if (d == 0.f) {
             dir = float3(0, 0, 0);
           }
 
-          if (d < h && index != DTid.x) {
-            pressureGrad += -dir * mass * (pressure + particles[index].pressure) / (2 * particles[index].density) * GradW(d, h);
-            viscosity += dynamicViscosity * mass * (particles[index].velocity - velocity) / particles[index].density * spikyLap * (h - d);
-            colorFieldGrad += mass / particles[index].density * GradW(d, h);
-            colorFieldLap += mass / particles[index].density * LapW(d, h);
+          if (d < h && startIdx + c != DTid.x) {
+            pressureGrad += -dir * mass * (pressure + particles[startIdx +
+              c].pressure) / (2 * particles[startIdx + c].density) * GradW(d, h);
+            viscosity += dynamicViscosity * mass * (particles[startIdx +
+              c].velocity - velocity) * particles[startIdx + c].density * W(d, h);
+            colorFieldGrad += mass / particles[startIdx + c].density * GradW(d, h);
+            colorFieldLap += mass / particles[startIdx + c].density * LapW(d, h);
           }
         }
       }

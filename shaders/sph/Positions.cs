@@ -1,15 +1,19 @@
 #include "../Sph.hlsli"
 
 StructuredBuffer<uint> hash : register(t0);
-StructuredBuffer<uint> entries : register(t1);
 RWStructuredBuffer<Particle> particles : register(u0);
 RWStructuredBuffer<State> state : register(u1);
+
+static const float period = 4.f;
+static const float delay = 4.f;
 
 void CheckBoundary(in uint index)
 {
     float3 padding = 4 * marchingWidth;
     float3 localPos = particles[index].position - worldPos;
     float3 velocity = particles[index].velocity;
+    float movingPadding = boundaryLen.x * 0.33 * 0.5 * (cos(2 * PI * max(state[0].time - delay, 0) / period ) + 1);
+    float boundaryRepulsion = 100 * 4000;
 
     if (localPos.y < padding.y)
     {
@@ -23,15 +27,15 @@ void CheckBoundary(in uint index)
         velocity.y *= -dampingCoeff;
     }
 
-    if (localPos.x < padding.y)
+    if (localPos.x < padding.x)
     {
         localPos.x = -localPos.x + 2 * padding.y;
         velocity.x *= -dampingCoeff;
     }
 
-    if (localPos.x > -padding.y + boundaryLen.x)
+    if (localPos.x > -padding.x + boundaryLen.x)
     {
-        localPos.x = -localPos.x + 2 * (-padding.y + boundaryLen.x);
+        localPos.x = -localPos.x + 2 * (-padding.x + boundaryLen.x);
         velocity.x *= -dampingCoeff;
     }
 
@@ -52,13 +56,11 @@ void CheckBoundary(in uint index)
 }
 
 
-static const float period = 4.f;
-static const float delay = 4.f;
 
 void ForceBoundary(in uint index) {
     float3 padding = float3(10, 10, 10) * marchingWidth;
-    float boundaryRepulsion = 100 * 4000;
-    float movingPadding = boundaryLen.x * 0.33 * 0.5 * (-cos(2 * PI * max(state[0].time - delay, 0) / period ) + 1);
+    float boundaryRepulsion = 100 * 2000;
+    float movingPadding = boundaryLen.x * 0.33 * 0.5 * (cos(2 * PI * max(state[0].time - delay, 0) / period ) + 1);
 
     float3 force = particles[index].force;
     float3 localPos = particles[index].position - worldPos;
@@ -104,7 +106,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
     state[0].time += dt;
   }
 
-    ForceBoundary(DTid.x);
+    CheckBoundary(DTid.x);
 
     particles[DTid.x].velocity += dt * particles[DTid.x].force / particles[DTid.x].density;
     particles[DTid.x].position += dt * particles[DTid.x].velocity;
