@@ -12,6 +12,7 @@ set(
   ./objects/terrain.cpp
   ./device-resources.cpp
   ./simulation/marching-cubes.cpp
+  ./simulation/mc-gpu.cpp
   ./simulation/water.cpp
   ./simulationRenderer.cpp
   ./simulation/heightfield.cpp

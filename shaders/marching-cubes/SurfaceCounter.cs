@@ -13,7 +13,7 @@ void count(in uint index)
       return;
     }
 
-  float3 globalPos = (cell + float3(0.5f, 0.5f, 0.5f))* marchingWidth + worldPos;
+  float3 globalPos = ((float3)cell + float3(0.5f, 0.5f, 0.5f)) * marchingWidth + worldPos;
   uint key, idx, startIdx, entriesNum;
   uint count = 0;
   float d = 0;
@@ -27,7 +27,7 @@ void count(in uint index)
         entriesNum = hash[key + 1] - startIdx;
         for (uint c = 0; c < entriesNum; ++c) {
           d = distance(globalPos, particles[startIdx + c].position);
-          if (d < length(marchingWidth / 2)) {
+          if (d <= length(marchingWidth / 2)) {
             count++;
           }
         }

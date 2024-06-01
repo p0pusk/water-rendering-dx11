@@ -32,7 +32,7 @@ void cs(uint3 DTid : SV_DispatchThreadID)
           entriesNum = hash[key + 1] - startIdx;
           for (uint c = 0; c < entriesNum; ++c) {
             d = distance(particles[startIdx + c].position, globalPos);
-            if (d < length(marchingWidth / 2)) {
+            if (d <= length(marchingWidth / 2)) {
               sum++;
             }
           }

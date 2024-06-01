@@ -274,7 +274,6 @@ void SphGpu::Update() {
   pContext->End(m_pQuerySphStart.Get());
 
   try {
-    pContext->End(m_pQuerySphStart.Get());
     CreateHash();
     UpdateSPH();
     pContext->End(m_pQuerySphEnd.Get());
